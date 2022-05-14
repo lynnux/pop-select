@@ -1,0 +1,17 @@
+[package]
+name = "pop-select"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+emacs = "0.11.0"
+native-windows-gui = "1.0.12"
+winapi = {version="0.3", features=["minwindef", "windef", "wingdi", "winuser", "libloaderapi", "processthreadsapi", "basetsd", "debugapi", "errhandlingapi"]}
+
+[lib]
+crate-type = ["cdylib"]
+
+[build-dependencies]
+embed-resource = "1"
