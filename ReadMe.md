@@ -26,7 +26,7 @@
 (when (fboundp 'pop-select/pop-select)
   (defun my-pop-select(&optional backward)
     (interactive)
-    (let* ((myswitch-buffer-list (copy-sequence (ep-tabbar-buffer-list)
+    (let* ((myswitch-buffer-list (copy-sequence (buffer-list)
 					                            )
                                  )  (vec_name [])
                                     sel
