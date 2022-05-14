@@ -3,10 +3,10 @@
 1. `pop-select/gui-set-transparent`
 设置Emacs窗口透明，设置代码：
 ```
-(ignore-errors (module-load "pop-select.dll全路径，如果没有加入bin路径的话"))
+(ignore-errors (module-load "pop_select.dll全路径，如果没有加入bin路径的话"))
 (when (functionp 'pop-select/gui-set-transparent)
   (defvar cur-transparent 255)
-  (defconst step-transparent 20)
+  (defconst step-transparent 20) ;; 每次增大/减小透明度的数值
   (pop-select/gui-set-transparent cur-transparent)
   (defun dec-transparent()
     (interactive)
