@@ -163,7 +163,7 @@ fn create_shadow_window(hwd_parent: HWND) -> Option<ShadowData> {
             y.into(),
             w,
             h,
-            SWP_SHOWWINDOW// SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER,
+            SWP_SHOWWINDOW | SWP_NOACTIVATE// SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER,
         );
         ShowWindow(m_h_wnd, SW_SHOW);
         let hdc = GetDC(m_h_wnd);
@@ -226,7 +226,7 @@ extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPA
                     y.into(),
                     w,
                     h,
-                    SWP_SHOWWINDOW,// SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER,
+                    SWP_SHOWWINDOW | SWP_NOACTIVATE,// SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER,
                 );
                 ShowWindow(pthis.hwnd as HWND, SW_SHOW);
                 
