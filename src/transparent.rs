@@ -1,5 +1,8 @@
 ﻿use crate::to_wstring;
 use emacs::{defun, Result};
+use std::sync::atomic::AtomicU16;
+use std::sync::atomic::AtomicU32;
+use std::sync::Arc;
 use std::sync::Mutex;
 use winapi::shared::ntdef::NULL;
 use winapi::shared::winerror::ERROR_SUCCESS;
@@ -10,6 +13,7 @@ use winapi::um::libloaderapi::*;
 use winapi::um::wingdi::*;
 extern crate native_windows_gui as nwg;
 use std::collections::HashMap;
+use std::sync::atomic::Ordering;
 use winapi::shared::basetsd::LONG_PTR;
 use winapi::shared::minwindef::*;
 use winapi::shared::windef::*;
@@ -77,14 +81,14 @@ bitflags! {
 
 struct ShadowData {
     hwnd: usize,
-    status: ShadowStatus,
-    width: WORD,
-    height: WORD,
-    xpos: WORD,
-    ypos: WORD,
+    status: AtomicU32, // ShadowStatus,
+    width: AtomicU16,  // WORD,
+    height: AtomicU16,
+    xpos: AtomicU16,
+    ypos: AtomicU16,
     org_winproc: usize, //WNDPROC,
 }
-type ShadowDataPtr = ShadowData;
+type ShadowDataPtr = Arc<ShadowData>;
 
 // emacs命令调用跟gui处理并一定是同一线程，要按多线程来处理！
 use lazy_static::lazy_static;
@@ -98,16 +102,17 @@ fn create_shadow_window(hwd_parent: HWND) -> Option<ShadowData> {
     unsafe {
         debug_output("create_shadow_window".to_owned());
         let cls_name = to_wstring("EmacsShadowWindow");
-        let wnd_name = to_wstring("EmacsShadowWindow");
+        let wnd_name = to_wstring("EmacsShadowWindowName");
         let m_h_wnd = CreateWindowExW(
-            WS_EX_LAYERED | WS_EX_TRANSPARENT,
+            WS_EX_TOOLWINDOW | WS_EX_LAYERED | WS_EX_TRANSPARENT,
             cls_name.as_ptr(),
             wnd_name.as_ptr(),
-            /*WS_VISIBLE | *//*WS_CAPTION | */ WS_POPUPWINDOW,
-            CW_USEDEFAULT,
+            /*WS_VISIBLE | *//*WS_CAPTION | */ WS_POPUP,
             0,
             0,
             0,
+            0,
+            // hwd_parent,
             std::ptr::null_mut(),
             std::ptr::null_mut(),
             GetModuleHandleW(std::ptr::null_mut()) as HINSTANCE,
@@ -122,28 +127,56 @@ fn create_shadow_window(hwd_parent: HWND) -> Option<ShadowData> {
             return None;
         }
 
-        let parent_style = GetWindowLongA(hwd_parent, GWL_STYLE);
-        let status: ShadowStatus;
-        if (WS_VISIBLE & parent_style as u32) != 0 {
-            status = ShadowStatus::SS_ENABLED;
-        } else if ((WS_MAXIMIZE | WS_MINIMIZE) & parent_style as u32) != 0 {
-            status = ShadowStatus::SS_ENABLED | ShadowStatus::SS_PARENTVISIBLE;
-        } else {
-            status = ShadowStatus::SS_ENABLED
-                | ShadowStatus::SS_VISABLE
-                | ShadowStatus::SS_PARENTVISIBLE;
-            ShowWindow(m_h_wnd, SW_SHOWNA);
-            // Update(hParentWnd);
-        }
+        // let parent_style = GetWindowLongA(hwd_parent, GWL_STYLE);
+        let status: ShadowStatus = ShadowStatus::SS_VISABLE;
+        // if (WS_VISIBLE & parent_style as u32) != 0 {
+        //     status = ShadowStatus::SS_ENABLED;
+        // } else if ((WS_MAXIMIZE | WS_MINIMIZE) & parent_style as u32) != 0 {
+        //     status = ShadowStatus::SS_ENABLED | ShadowStatus::SS_PARENTVISIBLE;
+        // } else {
+        //     status = ShadowStatus::SS_ENABLED
+        //         | ShadowStatus::SS_VISABLE
+        //         | ShadowStatus::SS_PARENTVISIBLE;
+        //     ShowWindow(m_h_wnd, SW_SHOWNA);
+        //     // Update(hParentWnd);
+        // }
+        let mut rc :RECT = std::mem::zeroed();
+        GetWindowRect(hwd_parent, &mut rc as *mut _);
+        debug_output(format!("ShadowData status :{}", status.bits()));
+        let x = rc.left;
+        let y = rc.top;
+        let w = rc.right-rc.left;
+        let h =rc.bottom-rc.top; 
         let sd = ShadowData {
             hwnd: m_h_wnd as usize,
-            status,
-            width: 0,
-            height: 0,
-            xpos: 0,
-            ypos: 0,
+            status: AtomicU32::new(status.bits()),
+            width: AtomicU16::new((w).try_into().unwrap()),
+            height: AtomicU16::new((h).try_into().unwrap()),
+            xpos: AtomicU16::new(0),
+            ypos: AtomicU16::new(0),
             org_winproc: 0,
         };
+        SetWindowPos(
+            m_h_wnd,
+            std::ptr::null_mut(),
+            x.into(),
+            y.into(),
+            w,
+            h,
+            SWP_SHOWWINDOW// SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER,
+        );
+        ShowWindow(m_h_wnd, SW_SHOW);
+        let hdc = GetDC(m_h_wnd);
+        if !hdc.is_null() && !SHADOW_BRUSH.is_null(){
+            let mut rc: RECT = std::mem::zeroed();
+            rc.left = 0;
+            rc.top = 0;
+            rc.right =w as i32;
+            rc.bottom = h as i32;
+            FillRect(hdc, &rc, SHADOW_BRUSH as *mut _);
+            ReleaseDC(m_h_wnd, hdc);
+        }
+        
         return Some(sd);
     }
 }
@@ -162,103 +195,124 @@ unsafe extern "system" fn cwndshadow_window_proc(
 
 extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     unsafe {
-        let mut sw = SHADOW_WNDOWS.lock().unwrap();
-        if let Some(mut shadow) = sw.get_mut(&(hwnd as usize)) {
-            let mut pthis = &mut shadow;
-            // debug_output(format!("hwnd:{}, msg:{}, wparam:{}, lparam:{}", hwnd as usize, msg, wparam, lparam));
-            if msg == WM_MOVE {
-                debug_output("WM_MOVE".to_owned());
-                if pthis.status.contains(ShadowStatus::SS_VISABLE) {
-                    // let mut WndRect: RECT = std::mem::zeroed();
-                    // GetWindowRect(hwnd, &mut WndRect as *mut _);
-                    pthis.xpos = LOWORD(lparam as DWORD);
-                    pthis.ypos = HIWORD(lparam as DWORD);
-                    SetWindowPos(
-                        pthis.hwnd as HWND,
-                        std::ptr::null_mut(),
-                        pthis.xpos.into(),
-                        pthis.ypos.into(),
-                        pthis.width.into(),
-                        pthis.height.into(),
-                        SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER,
-                    );
-                }
+        let data;
+        {
+            let mut sw = SHADOW_WNDOWS.lock().unwrap();
+            if let Some(shadow) = sw.get_mut(&(hwnd as usize)) {
+                data = shadow.clone();
+            } else {
+                return DefWindowProcW(hwnd, msg, wparam, lparam);
             }
-            if msg == WM_ERASEBKGND {
-                debug_output("WM_ERASEBKGND".to_owned());
-
-                // 画背景色
-                let hdc = wparam as HDC;
-                if !hdc.is_null() && !SHADOW_BRUSH.is_null() {
-                    let mut rc: RECT = std::mem::zeroed();
-                    rc.left = 0;
-                    rc.top = 0;
-                    rc.right = pthis.width as i32;
-                    rc.bottom = pthis.height as i32;
-                    FillRect(hdc, &rc, SHADOW_BRUSH as *mut _);
-                }
-            }
-            if msg == WM_SIZE {
-                debug_output("WM_SIZE".to_owned());
-
-                if pthis.status.contains(ShadowStatus::SS_ENABLED) {
-                    pthis.width = LOWORD(lparam as DWORD);
-                    pthis.height = HIWORD(lparam as DWORD);
-                    if SIZE_MAXIMIZED == wparam || SIZE_MINIMIZED == wparam {
-                        if SIZE_MINIMIZED == wparam {
-                            ShowWindow(pthis.hwnd as HWND, SW_HIDE);
-                            pthis.status.remove(ShadowStatus::SS_VISABLE);
-                        } else {
-                            SendMessageW(pthis.hwnd as HWND, WM_SIZE, SIZE_MAXIMIZED, 0);
-                        }
-                    } else if pthis.status.contains(ShadowStatus::SS_PARENTVISIBLE) {
-                        // Parent maybe resized even if invisible
-                        if !pthis.status.contains(ShadowStatus::SS_VISABLE) {
-                            ShowWindow(pthis.hwnd as HWND, SW_SHOWNA);
-                            pthis.status.insert(ShadowStatus::SS_VISABLE);
-                        }
-                    }
-                }
-            }
-            if msg == WM_SHOWWINDOW {
-                debug_output("WM_SHOWWINDOW".to_owned());
-
-                if pthis.status.contains(ShadowStatus::SS_ENABLED) {
-                    if wparam == 0 {
-                        ShowWindow(pthis.hwnd as HWND, SW_HIDE);
-                        pthis.status.remove(ShadowStatus::SS_VISABLE);
-                        pthis.status.remove(ShadowStatus::SS_PARENTVISIBLE);
-                    } else if !pthis.status.contains(ShadowStatus::SS_PARENTVISIBLE) {
-                        ShowWindow(pthis.hwnd as HWND, SW_SHOWNA);
-                        pthis.status.insert(ShadowStatus::SS_VISABLE);
-                        pthis.status.insert(ShadowStatus::SS_PARENTVISIBLE);
-                    }
-                }
-            }
-            // TODO: 暂时不做删除，也不会有很多窗口
-            // if msg == WM_DESTROY{
-            //     DestroyWindow(pthis.hwnd);
-            // }
-            // if msg == WM_NCDESTROY{
-            // }
-
-            return CallWindowProcW(
-                Some(std::mem::transmute(pthis.org_winproc)),
-                hwnd,
-                msg,
-                wparam,
-                lparam,
-            );
-        } else {
-            debug_output("window_proc failed2".to_owned());
         }
+        let pthis = data;
+        let mut status_flags =
+            ShadowStatus::from_bits_truncate(pthis.status.load(Ordering::SeqCst));
+        // debug_output(format!("hwnd:{}, msg:{}, wparam:{}, lparam:{}", hwnd as usize, msg, wparam, lparam));
+        if msg == WM_MOVE {
+            debug_output("before WM_MOVE".to_owned());
+            if status_flags.contains(ShadowStatus::SS_VISABLE) {
+                // let mut WndRect: RECT = std::mem::zeroed();
+                // GetWindowRect(hwnd, &mut WndRect as *mut _);
+                let x = LOWORD(lparam as DWORD);
+                let y = HIWORD(lparam as DWORD);
+                let w = pthis.width.load(Ordering::SeqCst).into();
+                let h = pthis.height.load(Ordering::SeqCst).into();
+                pthis.xpos.store(x, Ordering::SeqCst);
+                pthis.ypos.store(y, Ordering::SeqCst);
+                SetWindowPos(
+                    pthis.hwnd as HWND,
+                    std::ptr::null_mut(),
+                    x.into(),
+                    y.into(),
+                    w,
+                    h,
+                    SWP_SHOWWINDOW,// SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER,
+                );
+                ShowWindow(pthis.hwnd as HWND, SW_SHOW);
+                
+                debug_output(format!(
+                    "WM_MOVE SetWindowPos x:{}, y:{}, w:{}, h:{}",
+                    x, y, w, h
+                ));
+            }
+        }
+        if msg == WM_ERASEBKGND {
+            debug_output("before WM_ERASEBKGND".to_owned());
 
-        return DefWindowProcW(hwnd, msg, wparam, lparam);
+            // 画背景色
+            let hdc = wparam as HDC;
+            if !hdc.is_null() && !SHADOW_BRUSH.is_null() {
+                debug_output("do WM_ERASEBKGND".to_owned());
+                let mut rc: RECT = std::mem::zeroed();
+                rc.left = 0;
+                rc.top = 0;
+                rc.right = pthis.width.load(Ordering::SeqCst) as i32;
+                rc.bottom = pthis.height.load(Ordering::SeqCst) as i32;
+                FillRect(hdc, &rc, SHADOW_BRUSH as *mut _);
+            }
+        }
+        if msg == WM_SIZE {
+            debug_output("before WM_SIZE".to_owned());
+            let w = LOWORD(lparam as DWORD);
+            let h = HIWORD(lparam as DWORD);
+            debug_output(format!("WM_SIZE  w:{}, h:{}", w, h));
+            pthis.width.store(w, Ordering::SeqCst);
+            pthis.height.store(h, Ordering::SeqCst);
+            if SIZE_MAXIMIZED == wparam || SIZE_MINIMIZED == wparam {
+                if SIZE_MINIMIZED == wparam {
+                    ShowWindow(pthis.hwnd as HWND, SW_HIDE);
+                    // status_flags.remove(ShadowStatus::SS_VISABLE);
+                    pthis.status.store(status_flags.bits(), Ordering::SeqCst);
+                    debug_output(format!("WM_SIZE  SIZE_MINIMIZED"));
+                } else {
+                    debug_output(format!("WM_SIZE  SIZE_MAXIMIZED"));
+                    SendMessageW(pthis.hwnd as HWND, WM_SIZE, SIZE_MAXIMIZED, 0);
+                }
+            } else if status_flags.contains(ShadowStatus::SS_PARENTVISIBLE) {
+                debug_output(format!("WM_SIZE  SS_PARENTVISIBLE"));
+                // Parent maybe resized even if invisible
+                if !status_flags.contains(ShadowStatus::SS_VISABLE) {
+                    debug_output(format!("WM_SIZE  SW_SHOWNA"));
+                    ShowWindow(pthis.hwnd as HWND, SW_SHOWNA);
+                    status_flags.insert(ShadowStatus::SS_VISABLE);
+                    pthis.status.store(status_flags.bits(), Ordering::SeqCst);
+                }
+            }
+        }
+        if msg == WM_SHOWWINDOW {
+            debug_output("before WM_SHOWWINDOW".to_owned());
+            if wparam == 0 {
+                debug_output("WM_SHOWWINDOW SW_HIDE".to_owned());
+                ShowWindow(pthis.hwnd as HWND, SW_HIDE);
+                // status_flags.remove(ShadowStatus::SS_VISABLE);
+                status_flags.remove(ShadowStatus::SS_PARENTVISIBLE);
+                pthis.status.store(status_flags.bits(), Ordering::SeqCst);
+            } else if !status_flags.contains(ShadowStatus::SS_PARENTVISIBLE) {
+                debug_output("WM_SHOWWINDOW SHOWNA".to_owned());
+                ShowWindow(pthis.hwnd as HWND, SW_SHOWNA);
+                status_flags.insert(ShadowStatus::SS_VISABLE);
+                status_flags.insert(ShadowStatus::SS_PARENTVISIBLE);
+                pthis.status.store(status_flags.bits(), Ordering::SeqCst);
+            }
+        }
+        // TODO: 暂时不做删除，也不会有很多窗口
+        // if msg == WM_DESTROY{
+        //     DestroyWindow(pthis.hwnd);
+        // }
+        // if msg == WM_NCDESTROY{
+        // }
+
+        return CallWindowProcW(
+            Some(std::mem::transmute(pthis.org_winproc)),
+            hwnd,
+            msg,
+            wparam,
+            lparam,
+        );
     }
 }
 
 fn hook_emacs_windproc(h: HWND) {
-    debug_output("hook_emacs_windproc".to_owned());
     unsafe {
         {
             let sw = SHADOW_WNDOWS.lock().unwrap();
@@ -289,7 +343,7 @@ fn hook_emacs_windproc(h: HWND) {
             if sw.contains_key(&(h as usize)) {
                 return;
             }
-            sw.insert(h as usize, sd);
+            sw.insert(h as usize, Arc::new(sd));
         }
     }
 }
@@ -391,13 +445,32 @@ pub fn set_all_frame(alpha: u8) -> Result<()> {
     Ok(())
 }
 
+static mut ORG_R : u8 = 0;
+static mut ORG_G : u8 = 0;
+static mut ORG_B : u8 = 0;
+
 #[defun]
 pub fn set_background(alpha: u8, r: u8, g: u8, b: u8) -> Result<()> {
     unsafe {
         if !SHADOW_BRUSH.is_null() {
-            DeleteObject(SHADOW_BRUSH as *mut _);
+            if ORG_R != r || ORG_G != g || ORG_B != b{
+                DeleteObject(SHADOW_BRUSH as *mut _);
+                SHADOW_BRUSH = CreateSolidBrush(RGB(r, g, b));
+                if !SHADOW_BRUSH.is_null(){
+                    ORG_R = r;
+                    ORG_G = g;
+                    ORG_B = b;
+                }
+            }
         }
-        SHADOW_BRUSH = CreateSolidBrush(RGB(r, g, b));
+        else{
+            SHADOW_BRUSH = CreateSolidBrush(RGB(r, g, b));
+        }
+
+        if SHADOW_BRUSH.is_null(){
+            debug_output("SHADOW_BRUSH.is_null !".to_owned());
+        }
+        
         // 先给所有Emacs窗口设置透明颜色
         if let Some(hwnd) = get_current_process_wnd() {
             for h in hwnd {
