@@ -1,11 +1,11 @@
 ﻿use emacs::{defun, Result};
 extern crate native_windows_gui as nwg;
-use winapi::um::wingdi::RGB;
 use std::rc::Rc;
 use winapi::shared::basetsd::LONG_PTR;
 use winapi::shared::minwindef::*;
 use winapi::shared::windef::*;
 use winapi::um::processthreadsapi::*;
+use winapi::um::wingdi::RGB;
 use winapi::um::winuser::GetForegroundWindow;
 use winapi::um::winuser::*;
 
@@ -195,7 +195,7 @@ pub fn gui_init() {
 
 struct EnumData {
     pid: DWORD,
-    ret: HWND,
+    ret: Vec<HWND>,
 }
 fn enum_windows_item(data: &mut EnumData, hwnd: HWND) -> BOOL {
     let mut p: DWORD = 0;
@@ -203,9 +203,8 @@ fn enum_windows_item(data: &mut EnumData, hwnd: HWND) -> BOOL {
         unsafe {
             let mut buf: [u8; MAX_PATH] = std::mem::zeroed();
             let len = GetClassNameA(hwnd, &mut buf as *mut _ as *mut _, MAX_PATH as i32);
-            if len == 5 && &buf[0..5] == b"Emacs"{
-                data.ret = hwnd;
-                return 0;
+            if len == 5 && &buf[0..5] == b"Emacs" {
+                data.ret.push(hwnd);
             }
         }
     }
@@ -216,38 +215,70 @@ unsafe extern "system" fn enum_callback(win_hwnd: HWND, arg: LONG_PTR) -> BOOL {
     enum_windows_item(&mut *pthis, win_hwnd)
 }
 
-fn get_current_process_wnd() -> Option<HWND> {
+fn get_current_process_wnd() -> Option<Vec<HWND>> {
     let mut data = EnumData {
         pid: unsafe { winapi::um::processthreadsapi::GetCurrentProcessId() },
-        ret: std::ptr::null_mut(),
+        ret: Vec::new(),
     };
     unsafe {
         EnumWindows(Some(enum_callback), &mut data as *mut _ as LONG_PTR);
     }
-    if !data.ret.is_null() {
+    if !data.ret.is_empty() {
         Some(data.ret)
     } else {
         None
     }
 }
 
+fn set_transparent_one_frame(alpha: u8, hwnd: HWND) {
+    unsafe {
+        let old_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        if 0 == old_style & WS_EX_LAYERED as LONG_PTR {
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, old_style | WS_EX_LAYERED as LONG_PTR);
+        }
+        SetLayeredWindowAttributes(
+            hwnd,
+            RGB(40, 44, 52), //RGB(0, 0, 0),
+            alpha,
+            LWA_ALPHA, //LWA_COLORKEY,// LWA_ALPHA,
+        );
+    }
+}
+
+fn set_background_transparent_one_frame(hwnd: HWND, r: u8, g: u8, b: u8) {
+    unsafe {
+        let old_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        if 0 == old_style & WS_EX_LAYERED as LONG_PTR {
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, old_style | WS_EX_LAYERED as LONG_PTR);
+        }
+        SetLayeredWindowAttributes(hwnd, RGB(r, g, b), 0, LWA_COLORKEY);
+    }
+}
 
 #[defun]
-pub fn set_transparent(alpha: u8) -> Result<()> {
-    if let Some(hwnd) = get_current_process_wnd(){
-        unsafe{
-            let old_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-            if 0 == old_style & WS_EX_LAYERED as LONG_PTR{
-                SetWindowLongPtrW(hwnd , GWL_EXSTYLE, old_style | WS_EX_LAYERED as LONG_PTR);
-            }
-            if 0 != SetLayeredWindowAttributes(
-                hwnd,
-                RGB(0, 0, 0),
-                alpha,
-                LWA_ALPHA,
-            ){
-            }
+pub fn set_transparent_current_frame(alpha: u8) -> Result<()> {
+    if let Some(hwnd) = get_current_process_wnd() {
+        set_transparent_one_frame(alpha, hwnd[0]); // 第1个就是当前窗口
+    }
+    Ok(())
+}
+
+#[defun]
+pub fn set_transparent_all_frame(alpha: u8) -> Result<()> {
+    if let Some(hwnd) = get_current_process_wnd() {
+        for h in hwnd {
+            set_transparent_one_frame(alpha, h);
         }
     }
+    Ok(())
+}
+
+#[defun]
+pub fn set_background_transparent_current_frame(alpha: u8) -> Result<()> {
+    Ok(())
+}
+
+#[defun]
+pub fn set_background_transparent_all_frame(alpha: u8) -> Result<()> {
     Ok(())
 }
