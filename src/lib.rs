@@ -1,5 +1,6 @@
-﻿mod gui;
-mod beacon;
+﻿mod beacon;
+mod gui;
+mod transparent;
 
 // (module-load "pop_select")
 // (message (pop-select/select (vector "aa" "bb" "aa" "bb""aa" "bb""aa" "bb""aa" "bb""aa" "bb""aa" "中文")))
@@ -12,6 +13,8 @@ use emacs::{
     Result,
     Vector, // Value
 };
+use std::ffi::OsStr;
+use std::os::windows::ffi::OsStrExt;
 
 // Emacs won't load the module without this.
 emacs::plugin_is_GPL_compatible!();
@@ -20,6 +23,7 @@ emacs::plugin_is_GPL_compatible!();
 fn init(_: &Env) -> Result<()> {
     gui::gui_init();
     beacon::becaon_init();
+    transparent::transparent_init();
     Ok(())
 }
 
@@ -55,4 +59,11 @@ extern "system" fn DllMain(
         _ => (),
     }
     1
+}
+
+fn to_wstring(s: &str) -> Vec<u16> {
+    OsStr::new(s)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
 }

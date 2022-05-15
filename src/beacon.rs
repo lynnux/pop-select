@@ -1,4 +1,5 @@
-﻿use emacs::{defun, Result};
+﻿use crate::to_wstring;
+use emacs::{defun, Result};
 use winapi::ctypes::*;
 use winapi::shared::basetsd::*;
 use winapi::shared::minwindef::*;
@@ -28,16 +29,6 @@ const WM_SHOW_BEACON: UINT = WM_USER + 0x0001;
 const WM_BEACON_SET_SIZE: UINT = WM_USER + 0x0002;
 const TIMER_DURATION: UINT_PTR = 1;
 const TIMER_DELAY: UINT_PTR = 2;
-
-use std::ffi::OsStr;
-use std::os::windows::ffi::OsStrExt;
-
-fn to_wstring(s: &str) -> Vec<u16> {
-    OsStr::new(s)
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect()
-}
 
 pub unsafe extern "system" fn window_proc(
     hwnd: HWND,
@@ -136,6 +127,7 @@ fn create_wnd() {
         if !BEACON_WND.is_null() {
             return;
         }
+        let cls_name = to_wstring("rust_window_class");
         let wc = WNDCLASSEXW {
             cbSize: std::mem::size_of::<WNDCLASSEXW>() as UINT,
             style: CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS,
@@ -147,7 +139,7 @@ fn create_wnd() {
             hCursor: LoadCursorW(std::ptr::null_mut(), IDC_ARROW),
             hbrBackground: GetStockObject(WHITE_BRUSH as i32) as HBRUSH,
             lpszMenuName: std::ptr::null_mut(),
-            lpszClassName: to_wstring("rust_window_class").as_ptr(),
+            lpszClassName: cls_name.as_ptr(),
             hIconSm: std::ptr::null_mut(),
         };
         if RegisterClassExW(&wc) == 0 {
@@ -157,11 +149,12 @@ fn create_wnd() {
             }
         }
 
+        let wnd_name = to_wstring("Rust Window");
         // 透明要带WS_EX_LAYERED
         let hwnd = CreateWindowExW(
             WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_LAYERED, // 任务栏无标题，显示时无焦点切换
             wc.lpszClassName,
-            to_wstring("Rust Window").as_ptr(),
+            wnd_name.as_ptr(),
             WS_POPUP, // 调试用| WS_BORDER
             0,
             0,
