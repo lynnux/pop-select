@@ -236,7 +236,10 @@ fn get_current_process_wnd() -> Option<HWND> {
 pub fn set_transparent(alpha: u8) -> Result<()> {
     if let Some(hwnd) = get_current_process_wnd(){
         unsafe{
-            SetWindowLongW(hwnd , GWL_EXSTYLE, (WS_EX_LAYERED).try_into().unwrap());
+            let old_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+            if 0 == old_style & WS_EX_LAYERED as LONG_PTR{
+                SetWindowLongPtrW(hwnd , GWL_EXSTYLE, old_style | WS_EX_LAYERED as LONG_PTR);
+            }
             if 0 != SetLayeredWindowAttributes(
                 hwnd,
                 RGB(0, 0, 0),
