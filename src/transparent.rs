@@ -131,11 +131,6 @@ fn create_shadow_window(hwd_parent: HWND) -> Option<ShadowData> {
         };
         set_window_pos(&sd);
         ShowWindow(m_h_wnd, SW_SHOW);
-        // let hdc = GetDC(m_h_wnd);
-        // if !hdc.is_null() {
-        //     redraw(hdc, &sd);
-        //     ReleaseDC(m_h_wnd, hdc);
-        // }
         UpdateWindow(m_h_wnd);
         return Some(sd);
     }
@@ -150,6 +145,15 @@ unsafe extern "system" fn cwndshadow_window_proc(
     if msg == WM_MOUSEACTIVATE {
         return MA_NOACTIVATE as LRESULT;
     };
+    if msg == WM_PAINT {
+        debug_output("child WM_PAINT".to_owned());
+        if !SHADOW_BRUSH.is_null() {
+            let mut ps: PAINTSTRUCT = std::mem::zeroed();
+            let hdc = BeginPaint(hwnd, &mut ps as *mut _);
+            FillRect(hdc, &ps.rcPaint, SHADOW_BRUSH as *mut _);
+            EndPaint(hwnd, &ps);
+        }
+    }
     return DefWindowProcA(hwnd, msg, wparam, lparam);
 }
 
@@ -165,14 +169,21 @@ fn redraw(hdc: HDC, pthis: &ShadowData) {
         }
     }
 }
-fn redraw_window(hwnd: HWND, pthis: &ShadowData) {
-    unsafe {
-        let hdc = GetDC(hwnd);
-        if !hdc.is_null() {
-            redraw(hdc, pthis);
-            ReleaseDC(hwnd, hdc);
-        }
+fn redraw_window(hwnd: HWND) {
+    unsafe{
+        let mut rc: RECT = std::mem::zeroed();
+        GetWindowRect(hwnd, &mut rc as *mut _);
+        InvalidateRect(hwnd, &rc as *const _, TRUE);
+        UpdateWindow(hwnd);
     }
+    
+    // unsafe {
+    //     let hdc = GetDC(hwnd);
+    //     if !hdc.is_null() {
+    //         redraw(hdc, pthis);
+    //         ReleaseDC(hwnd, hdc);
+    //     }
+    // }
 }
 
 fn set_window_pos(pthis: &ShadowData) {
@@ -205,7 +216,6 @@ extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPA
             }
         }
         // debug_output(format!("message:{}", msg));
-        
         let pthis = data;
         if msg == WM_MOVE {
             let x = LOWORD(lparam as DWORD);
@@ -218,12 +228,6 @@ extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPA
         }
         if msg == WM_ERASEBKGND {
             // debug_output("WM_ERASEBKGND".to_owned());
-            // // 画背景色
-            // let hdc = wparam as HDC;
-            // if !hdc.is_null() && !SHADOW_BRUSH.is_null() {
-            //     debug_output("do WM_ERASEBKGND".to_owned());
-            //     redraw(hdc, &pthis);
-            // }
         }
         if msg == WM_SIZE {
             let w = LOWORD(lparam as DWORD);
@@ -234,7 +238,7 @@ extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPA
                 pthis.width.store(w, Ordering::SeqCst);
                 pthis.height.store(h, Ordering::SeqCst);
                 set_window_pos(&pthis);
-                redraw_window(pthis.hwnd as HWND, &pthis);
+                redraw_window(pthis.hwnd as HWND);
             }
             if SIZE_MAXIMIZED == wparam || SIZE_MINIMIZED == wparam {
                 if SIZE_MINIMIZED == wparam {
@@ -262,18 +266,26 @@ extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPA
             FillRect(hdc, &ps.rcPaint, SHADOW_BRUSH as *mut _);
             EndPaint(hwnd, &ps);
         }
-        if msg == WM_SETFOCUS{
+        if msg == WM_SETFOCUS {
             debug_output("WM_SETFOCUS".to_owned());
             // 解决切换回来不显示问题
-            // SetForegroundWindow(pthis.hwnd as HWND);
-            // redraw_window(pthis.hwnd as HWND, &pthis);
+            // redraw_window(pthis.hwnd as HWND);
+            // ShowWindow(pthis.hwnd as HWND, SW_HIDE);
+            // ShowWindow(pthis.hwnd as HWND, SW_SHOW);
+            // SetWindowPos(pthis.hwnd as HWND, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+            // SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
         }
         // TODO: 暂时不做删除，也不会有很多窗口
         if msg == WM_DESTROY {
+            debug_output("WM_DESTROY".to_owned());
             ShowWindow(pthis.hwnd as HWND, SW_HIDE);
-            // DestroyWindow(pthis.hwnd);
+            DestroyWindow(pthis.hwnd as HWND);
         }
-        if msg == WM_NCDESTROY {}
+        if msg == WM_NCDESTROY {
+            debug_output("WM_NCDESTROY".to_owned());
+            let mut sw = SHADOW_WNDOWS.lock().unwrap();
+            sw.remove(&(hwnd as usize));
+        }
 
         return CallWindowProcW(
             Some(std::mem::transmute(pthis.org_winproc)),
