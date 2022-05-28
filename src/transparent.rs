@@ -5,7 +5,6 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use winapi::shared::ntdef::NULL;
 use winapi::shared::winerror::ERROR_SUCCESS;
-use winapi::um::debugapi::*;
 use winapi::um::errhandlingapi::GetLastError;
 use winapi::um::errhandlingapi::SetLastError;
 use winapi::um::libloaderapi::*;
@@ -16,9 +15,30 @@ use std::sync::atomic::Ordering;
 use winapi::shared::basetsd::LONG_PTR;
 use winapi::shared::minwindef::*;
 use winapi::shared::windef::*;
-use winapi::um::processthreadsapi::*;
 use winapi::um::wingdi::RGB;
 use winapi::um::winuser::*;
+
+// 查看过release，确实把format!给优化了，没有内存分配
+macro_rules! debug_output {
+    ($str:expr) => {
+        #[cfg(debug_assertions)]
+        #[allow(unused_unsafe)]
+        unsafe {
+            use winapi::um::debugapi::*;
+            use winapi::um::processthreadsapi::*;
+            $str.insert_str(
+                0,
+                &format!(
+                    "pid:{}, tid:{} ",
+                    GetCurrentProcessId(),
+                    GetCurrentThreadId()
+                ),
+            );
+            let s = to_wstring(&$str);
+            OutputDebugStringW(s.as_ptr() as *const _);
+        }
+    };
+}
 
 // https://github.com/duilib/duilib/blob/bbc817e0a134cda1dc5be6a38864257649273095/DuiLib/Utils/WndShadow.cpp#L197-L307
 // msdn: https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features
@@ -42,7 +62,7 @@ pub fn transparent_init() {
         if RegisterClassExW(&wc) == 0 {
             #[cfg(debug_assertions)]
             {
-                OutputDebugStringA(b"RegisterClassEx failed\0".as_ptr() as *const _);
+                //OutputDebugStringA(b"RegisterClassEx failed\0".as_ptr() as *const _);
             }
         }
     }
@@ -119,7 +139,7 @@ fn set_window_pos(pthis: &ShadowData, parent: Option<HWND>) {
 
 fn create_shadow_window(hwd_parent: HWND) -> Option<ShadowData> {
     unsafe {
-        debug_output("create_shadow_window".to_owned());
+        debug_output!("create_shadow_window".to_owned());
         let cls_name = to_wstring("EmacsShadowWindow");
         let wnd_name = to_wstring("EmacsShadowWindowName");
         let m_h_wnd = CreateWindowExW(
@@ -139,7 +159,7 @@ fn create_shadow_window(hwd_parent: HWND) -> Option<ShadowData> {
         );
 
         if m_h_wnd.is_null() {
-            debug_output(format!(
+            debug_output!(format!(
                 "create_shadow_window CreateWindowExA failed! LastError:{}",
                 GetLastError()
             ));
@@ -147,11 +167,13 @@ fn create_shadow_window(hwd_parent: HWND) -> Option<ShadowData> {
         }
 
         let mut rc: RECT = std::mem::zeroed();
-        GetWindowRect(hwd_parent, &mut rc as *mut _);
+        GetWindowRect(hwd_parent, &mut rc as *mut _); // 最大化shadow初始化最下面有些挫位，影响不大
+        // MapWindowPoints(HWND_DESKTOP, hwd_parent, &mut rc as *mut _ as *mut _, 2);
         let x = rc.left;
         let y = rc.top;
         let w = rc.right - rc.left;
         let h = rc.bottom - rc.top;
+        debug_output!(format!("init rect: x:{}, y: {}, w:{}, h:{}", x, y, w, h));
         let sd = ShadowData {
             hwnd: m_h_wnd as usize,
             width: AtomicU16::new((w).try_into().unwrap_or(0)),
@@ -176,7 +198,7 @@ unsafe extern "system" fn cwndshadow_window_proc(
         return MA_NOACTIVATE as LRESULT;
     };
     if msg == WM_PAINT {
-        debug_output("child WM_PAINT".to_owned());
+        debug_output!("child WM_PAINT".to_owned());
         if !SHADOW_BRUSH.is_null() {
             let mut ps: PAINTSTRUCT = std::mem::zeroed();
             let hdc = BeginPaint(hwnd, &mut ps as *mut _);
@@ -187,28 +209,29 @@ unsafe extern "system" fn cwndshadow_window_proc(
     return DefWindowProcA(hwnd, msg, wparam, lparam);
 }
 
-fn redraw(hdc: HDC, pthis: &ShadowData) {
-    unsafe {
-        if !SHADOW_BRUSH.is_null() {
-            let mut rc: RECT = std::mem::zeroed();
-            rc.left = 0;
-            rc.top = 0;
-            rc.right = pthis.width.load(Ordering::SeqCst) as i32;
-            rc.bottom = pthis.height.load(Ordering::SeqCst) as i32;
-            FillRect(hdc, &rc, SHADOW_BRUSH as *mut _);
-        }
-    }
-}
-fn redraw_window(pthis: &ShadowData) {
+// fn redraw(hdc: HDC, pthis: &ShadowData) {
+//     unsafe {
+//         if !SHADOW_BRUSH.is_null() {
+//             let mut rc: RECT = std::mem::zeroed();
+//             rc.left = 0;
+//             rc.top = 0;
+//             rc.right = pthis.width.load(Ordering::SeqCst) as i32;
+//             rc.bottom = pthis.height.load(Ordering::SeqCst) as i32;
+//             FillRect(hdc, &rc, SHADOW_BRUSH as *mut _);
+//         }
+//     }
+// }
+fn redraw_window(_pthis: &ShadowData) {
+    debug_output!("child redraw_window".to_owned());
     return;
-    debug_output("child redraw_window".to_owned());
-    unsafe {
-        let hdc = GetDC(pthis.hwnd as HWND);
-        if !hdc.is_null() {
-            redraw(hdc, &pthis);
-            ReleaseDC(pthis.hwnd as HWND, hdc);
-        }
-    }
+    
+    // unsafe {
+    //     let hdc = GetDC(pthis.hwnd as HWND);
+    //     if !hdc.is_null() {
+    //         redraw(hdc, &pthis);
+    //         ReleaseDC(pthis.hwnd as HWND, hdc);
+    //     }
+    // }
 }
 
 extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
@@ -222,19 +245,18 @@ extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPA
                 return DefWindowProcW(hwnd, msg, wparam, lparam);
             }
         }
-        // debug_output(format!("message:{}", msg));
+        // debug_output!(format!("message:{}", msg));
         let pthis = data;
         if msg == WM_MOVE {
             let x = LOWORD(lparam as DWORD);
             let y = HIWORD(lparam as DWORD);
-            debug_output(format!("WM_MOVE, x:{}, y:{}", x, y));
+            debug_output!(format!("WM_MOVE, x:{}, y:{}", x, y));
             pthis.xpos.store(x, Ordering::SeqCst);
             pthis.ypos.store(y, Ordering::SeqCst);
             set_window_pos(&pthis, Some(hwnd));
-            // ShowWindow(pthis.hwnd as HWND, SW_SHOWNA);
         }
         if msg == WM_ERASEBKGND {
-            // debug_output("WM_ERASEBKGND".to_owned());
+            // debug_output!("WM_ERASEBKGND".to_owned());
         }
         if msg == WM_SIZE {
             let w = LOWORD(lparam as DWORD);
@@ -255,19 +277,19 @@ extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPA
                     out += " SIZE_MINIMIZED";
                 }
             }
-            debug_output(out);
+            debug_output!(out);
         }
         if msg == WM_SHOWWINDOW {
             if wparam == 0 {
-                debug_output("WM_SHOWWINDOW SW_HIDE".to_owned());
+                debug_output!("WM_SHOWWINDOW SW_HIDE".to_owned());
                 ShowWindow(pthis.hwnd as HWND, SW_HIDE);
             } else {
-                debug_output("WM_SHOWWINDOW SHOW".to_owned());
+                debug_output!("WM_SHOWWINDOW SHOW".to_owned());
                 ShowWindow(pthis.hwnd as HWND, SW_SHOWNA);
             }
         }
         if msg == WM_PAINT {
-            debug_output("parent WM_PAINT".to_owned());
+            debug_output!("parent WM_PAINT".to_owned());
             // update_shadow_window(pthis.hwnd as HWND);
             redraw_window(&pthis);
         }
@@ -275,15 +297,15 @@ extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPA
             redraw_window(&pthis);
         }
         if msg == WM_SETFOCUS {
-            debug_output("WM_SETFOCUS".to_owned());
+            debug_output!("WM_SETFOCUS".to_owned());
         }
         if msg == WM_DESTROY {
-            debug_output("WM_DESTROY".to_owned());
+            debug_output!("WM_DESTROY".to_owned());
             ShowWindow(pthis.hwnd as HWND, SW_HIDE);
             DestroyWindow(pthis.hwnd as HWND);
         }
         if msg == WM_NCDESTROY {
-            debug_output("WM_NCDESTROY".to_owned());
+            debug_output!("WM_NCDESTROY".to_owned());
             let mut sw = SHADOW_WNDOWS.lock().unwrap();
             sw.remove(&(hwnd as usize));
         }
@@ -311,7 +333,7 @@ fn hook_emacs_windproc(h: HWND) {
             SetLastError(ERROR_SUCCESS);
             let result = SetWindowLongPtrW(h, GWLP_WNDPROC, window_proc as isize);
             if result == 0 && GetLastError() != ERROR_SUCCESS {
-                debug_output("SetWindowLongPtrW failed!".to_owned());
+                debug_output!("SetWindowLongPtrW failed!".to_owned());
                 return;
             }
             sd.org_winproc = result as usize;
@@ -339,20 +361,6 @@ fn get_current_process_wnd() -> Option<Vec<HWND>> {
     }
 }
 
-fn debug_output(mut str: String) {
-    unsafe {
-        str.insert_str(
-            0,
-            &format!(
-                "pid:{}, tid:{} ",
-                GetCurrentProcessId(),
-                GetCurrentThreadId()
-            ),
-        );
-        let s = to_wstring(&str);
-        OutputDebugStringW(s.as_ptr() as *const _);
-    }
-}
 
 fn set_transparent_one_frame(alpha: u8, hwnd: HWND) {
     unsafe {
@@ -442,7 +450,7 @@ pub fn set_background(alpha: u8, r: u8, g: u8, b: u8) -> Result<()> {
         }
 
         if SHADOW_BRUSH.is_null() {
-            debug_output("SHADOW_BRUSH.is_null !".to_owned());
+            debug_output!("SHADOW_BRUSH.is_null !".to_owned());
         }
         let mut enable = true;
         let emacs_windows = get_current_process_wnd();
@@ -467,7 +475,6 @@ pub fn set_background(alpha: u8, r: u8, g: u8, b: u8) -> Result<()> {
         if alpha != 255{
             if let Some(hwnd) = &emacs_windows {
                 for hp in hwnd {
-                    // ShowWindow(*hp as HWND, SW_SHOWNA);
                     SetWindowPos(
                         *hp,
                         HWND_TOPMOST, //HWND_TOP
