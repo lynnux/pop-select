@@ -1,61 +1,101 @@
-* ¹¦ÄÜ½éÉÜ
-±¾¹¤¾ßÊÇÎªWindows EmacsÓÃ»§¶¨ÖÆµÄĞ¡¹¤¾ß¼¯£¬Ä¿Ç°Ö÷ÒªÊµÏÖµÄ¹¦ÄÜ¶¼¸ú´°¿ÚÓĞ¹Ø£¬º¬£º
-1. `pop-select/gui-set-transparent`
-ÉèÖÃEmacs´°¿ÚÍ¸Ã÷£¬ÉèÖÃ´úÂë£º
+åŠŸèƒ½ä»‹ç»
+===
+æœ¬Emacs moduleä¸“ä¸ºwindowsè®¾è®¡ã€‚ä¸»è¦åŠŸèƒ½æœ‰ï¼š
+# 1. è®¾ç½®Emacsçª—å£é€æ˜ #
+æœ‰ä¸¤ç§æ–¹å¼
+- è®¾ç½®æ•´ä¸ªemacsé€æ˜ã€‚
 ```
-(ignore-errors (module-load "pop_select.dllÈ«Â·¾¶£¬Èç¹ûÃ»ÓĞ¼ÓÈëbinÂ·¾¶µÄ»°"))
-(when (functionp 'pop-select/gui-set-transparent)
+(pop-select/transparent-set-all-frame ALPHA) ;; å¯¹æ‰€æœ‰frameè®¾ç½®é€æ˜ï¼ŒALPHAèŒƒå›´0-255ï¼Œ0å…¨é€æ˜ï¼Œ255ä¸é€æ˜
+(pop-select/transparent-set-current-frame ALPHA) ;; åªå¯¹å½“å‰frameè®¾ç½®é€æ˜ï¼Œå…¶å®ƒåŒä¸Š
+```
+ç¤ºä¾‹è®¾ç½®ï¼š
+```
+(ignore-errors (module-load "pop_select.dllå…¨è·¯å¾„ï¼Œå¦‚æœæ²¡æœ‰åŠ å…¥binè·¯å¾„çš„è¯"))
+(when (functionp 'pop-select/transparent-set-all-frame)
+    (pop-select/transparent-set-all-frame 220))
+```
+- è®¾ç½®æ–‡å­—ä¸é€æ˜ï¼ŒèƒŒæ™¯é€æ˜ã€‚ç”±äºå®ç°çš„é™åˆ¶ï¼Œè¯¥åŠŸèƒ½æ‰“å¼€æ—¶ä¼šä½¿Emacsç½®é¡¶ï¼Œå½“è®¾ç½®ä¸º255å³ä¸é€æ˜æ—¶å–æ¶ˆç½®é¡¶
+```
+(pop-select/transparent-set-background ALPHA R G B) ;; ALPHAèŒƒå›´0-255ï¼Œ0å…¨é€æ˜ï¼Œ255ä¸é€æ˜ã€‚R G Bä¸ºrgbæ‹†åˆ†æ•°å€¼ã€‚
+```
+ç¤ºä¾‹è®¾ç½®ï¼Œç”¨CTRL+é¼ æ ‡æ»šè½®è°ƒæ•´å½“å‰çš„é€æ˜åº¦ï¼š
+```
+(ignore-errors (module-load "pop_select.dllå…¨è·¯å¾„ï¼Œå¦‚æœæ²¡æœ‰åŠ å…¥binè·¯å¾„çš„è¯"))
+(when (functionp 'pop-select/transparent-set-background)
   (defvar cur-transparent 255)
-  (defconst step-transparent 20) ;; Ã¿´ÎÔö´ó/¼õĞ¡Í¸Ã÷¶ÈµÄÊıÖµ
-  (pop-select/gui-set-transparent cur-transparent)
+  (defconst step-transparent 20)
   (defun dec-transparent()
     (interactive)
     (setq cur-transparent (min 255 (+ cur-transparent step-transparent)))
-    (pop-select/gui-set-transparent cur-transparent))
+    (let* ((rgb (color-name-to-rgb (face-background 'default)))
+           (r (round (*(nth 0 rgb) 255)))
+           (g (round (*(nth 1 rgb) 255)))
+           (b (round (*(nth 2 rgb) 255))))
+      (pop-select/transparent-set-background cur-transparent r g b)
+      )
+    )
   (defun inc-transparent()
     (interactive)
     (setq cur-transparent (max 0 (- cur-transparent step-transparent)))
-    (pop-select/gui-set-transparent cur-transparent))
+    (let* ((rgb (color-name-to-rgb (face-background 'default)))
+           (r (round (*(nth 0 rgb) 255)))
+           (g (round (*(nth 1 rgb) 255)))
+           (b (round (*(nth 2 rgb) 255))))
+      (pop-select/transparent-set-background cur-transparent r g b)
+      ))
   (global-set-key (kbd "<C-wheel-up>") 'dec-transparent)
   (global-set-key (kbd "<C-wheel-down>") 'inc-transparent)
   )
 ```
-2. `pop-select/pop-select`
-µ¯³öÒ»¸öÊúĞÍÁĞ±í´°¿Ú£¬È»ºó¿ÉÒÔ°´ctrl+tabÇĞ»»µ½ÏÂÒ»Ïî£¬ctrl+tab+shiftÇĞ»»µ½ÉÏÒ»Ïî£¬ÊÍ·Å°´¼üºó·µ»ØËùÑ¡Ïî¸øemacs
+åé¢è¿™ç§æ•ˆæœå›¾ï¼š
+![gif](gif/1.gif)
+
+# 2. CTRL+TABå¼¹å‡ºçª—å£é€‰æ‹©åˆ—è¡¨ #
+`pop-select/pop-select`å¼¹å‡ºä¸€ä¸ªç«–å‹åˆ—è¡¨çª—å£ï¼Œç„¶åå¯ä»¥æŒ‰ctrl+tabåˆ‡æ¢åˆ°ä¸‹ä¸€é¡¹ï¼Œctrl+tab+shiftåˆ‡æ¢åˆ°ä¸Šä¸€é¡¹ï¼Œé‡Šæ”¾æŒ‰é”®åè¿”å›æ‰€é€‰é¡¹ç»™emacs
+```
+(pop-select/pop-select NAME TO-SEL) ;; NAMEä¸ºvectoråˆ—è¡¨ï¼ŒTO-SELæ˜¯åˆå§‹é€‰ä¸­å“ªé¡¹
+```
 ```
 (when (fboundp 'pop-select/pop-select)
   (defun my-pop-select(&optional backward)
     (interactive)
     (let* ((myswitch-buffer-list (copy-sequence (buffer-list)
-					                            )
+					        )
                                  )  (vec_name [])
                                     sel
                                     )
       (cl-dolist (buf myswitch-buffer-list)
         (setq vec_name (vconcat vec_name (list (buffer-name buf)))))
-      ;; ·µ»ØĞòºÅ
+      ;; è¿”å›åºå·
       (setq sel (pop-select/pop-select vec_name (if backward
                                                     (1- (length vec_name))
                                                   1
                                                   )))
       (let ((buf (switch-to-buffer (nth sel myswitch-buffer-list))))
         (when (and (bufferp buf) (featurep 'wcy-desktop))
-	      (with-current-buffer buf
-	        (when (eq major-mode 'not-loaded-yet)
-	          (wcy-desktop-load-file))))
+	  (with-current-buffer buf
+	    (when (eq major-mode 'not-loaded-yet)
+	      (wcy-desktop-load-file))))
         )
       )
     )
   (global-set-key (kbd "<C-tab>") 'my-pop-select)
   (global-set-key (if (string-equal system-type "windows-nt")
-		              (kbd "<C-S-tab>")
-	                (kbd "<C-S-iso-lefttab>"))
+		      (kbd "<C-S-tab>")
+	            (kbd "<C-S-iso-lefttab>"))
                   (lambda ()(interactive)
                     (my-pop-select t)))
   )
 ```
-3. `pop-select/beacon-blink`ºÍ`pop-select/beacon-set-parameters`
-ÓÃÓÚÌæ»»beaconµÄÉÁË¸Ğ§¹û£¬ÍêÈ«²»¿¨Emacs´°¿Ú£¬ÒòÎªÊÇÁíÆğÁËÒ»¸ö×¨ÃÅµÄuiÏß³ÌÀ´»­beacon
+æ•ˆæœå›¾ï¼š
+![gif](gif/2.gif)
+
+# 3. "å¼‚æ­¥"beaconæ•ˆæœ #
+ç”¨äºæ›¿æ¢beaconçš„é—ªçƒæ•ˆæœï¼Œå®Œå…¨ä¸å¡Emacsçª—å£ï¼Œå› ä¸ºæ˜¯å¦èµ·äº†ä¸€ä¸ªä¸“é—¨çš„uiçº¿ç¨‹æ¥ç”»beaconã€‚å®ç°å‡½æ•°`pop-select/beacon-blink`å’Œ`pop-select/beacon-set-parameters`
+```
+(pop-select/beacon-set-parameters WIDTH HEIGHT R G B DURATION-STEP) ;; å¯è®¾ç½®å®½åº¦ï¼Œé«˜åº¦ï¼Œrgbè‰²ï¼Œä»¥åŠblinkæ•ˆæœæ˜¾ç¤ºæ—¶é—´
+(pop-select/beacon-blink X Y TIMER DELAY) ;; åœ¨X, Yåæ ‡æ˜¾ç¤ºTIMERæ—¶é•¿ï¼ŒDELAYæ˜¯å»¶è¿Ÿæ˜¾ç¤ºæ—¶é—´
+```
 ```
 (when (fboundp 'pop-select/beacon-set-parameters)
   ;; 51afef
@@ -66,13 +106,13 @@
     (setq beacon-blink-when-focused t)
     (setq beacon-blink-delay 0.01)
     (setq beacon-blink-duration 0.2)
-    (setq beacon-blink-when-window-scrolls nil) ; ¿ªÆôÁËauto save£¬±£´æÊ±¶¼»áÉÁ¹Ê¶øÆÁ±Î
+    (setq beacon-blink-when-window-scrolls nil) ; å¼€å¯äº†auto saveï¼Œä¿å­˜æ—¶éƒ½ä¼šé—ªæ•…è€Œå±è”½
     :config
     (beacon-mode 1)
     (defadvice beacon-blink (around my-beacon-blink activate)
-      ;; Ä¿Ç°Å¼¶û²»ÊÇemacsÊ±Ò²µ¯´°
+      ;; ç›®å‰å¶å°”ä¸æ˜¯emacsæ—¶ä¹Ÿå¼¹çª—
       ;; (message (concat (symbol-name this-command) " " (symbol-name last-command)))
-      (when (frame-visible-p (window-frame)) ;; ¿ÉÒÔ×èÖ¹×îĞ¡»¯Ê±µ¯´°
+      (when (frame-visible-p (window-frame)) ;; å¯ä»¥é˜»æ­¢æœ€å°åŒ–æ—¶å¼¹çª—
         (let ((p (window-absolute-pixel-position)))
           (when p
             (pop-select/beacon-blink (car p) ; x
@@ -82,3 +122,6 @@
                                      ))))))
   )
 ```
+æ•ˆæœå›¾è·Ÿä¸Šé¢ä¸€æ ·ï¼š
+![gif](gif/2.gif)
+
