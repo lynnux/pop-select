@@ -20,6 +20,8 @@ use winapi::um::processthreadsapi::*;
 use winapi::um::wingdi::RGB;
 use winapi::um::winuser::*;
 
+// https://github.com/duilib/duilib/blob/bbc817e0a134cda1dc5be6a38864257649273095/DuiLib/Utils/WndShadow.cpp#L197-L307
+// msdn: https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features
 pub fn transparent_init() {
     unsafe {
         let cls_name = to_wstring("EmacsShadowWindow");
@@ -84,7 +86,36 @@ lazy_static! {
     static ref SHADOW_WNDOWS: Mutex<HashMap<usize, ShadowDataPtr>> = Mutex::new(HashMap::new());
 }
 static mut SHADOW_BRUSH: HBRUSH = std::ptr::null_mut();
-static mut IS_BACKGROUND_TRANSPARENT_MODE: bool = false;
+
+fn set_window_pos(pthis: &ShadowData, parent: Option<HWND>) {
+    let x = pthis.xpos.load(Ordering::SeqCst).into();
+    let y = pthis.ypos.load(Ordering::SeqCst).into();
+    let w = pthis.width.load(Ordering::SeqCst).into();
+    let h = pthis.height.load(Ordering::SeqCst).into();
+    unsafe {
+        SetWindowPos(
+            pthis.hwnd as HWND,
+            HWND_TOPMOST, //std::ptr::null_mut(),//HWND_TOPMOST, //,//HWND_NOTOPMOST,//
+            x,
+            y,
+            w,
+            h,
+            //SWP_SHOWWINDOW | SWP_NOACTIVATE,
+            SWP_SHOWWINDOW | SWP_NOACTIVATE, // | , // SWP_NOSIZE  SWP_NOZORDER
+        );
+        if let Some(hp) = parent {
+            SetWindowPos(
+                hp,
+                HWND_TOPMOST, //HWND_TOP
+                0,
+                0,
+                0,
+                0,
+                SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE,
+            );
+        }
+    }
+}
 
 fn create_shadow_window(hwd_parent: HWND) -> Option<ShadowData> {
     unsafe {
@@ -92,15 +123,15 @@ fn create_shadow_window(hwd_parent: HWND) -> Option<ShadowData> {
         let cls_name = to_wstring("EmacsShadowWindow");
         let wnd_name = to_wstring("EmacsShadowWindowName");
         let m_h_wnd = CreateWindowExW(
-            WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_LAYERED | WS_EX_TRANSPARENT,
+            WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED, //   WS_EX_TOPMOST  WS_EX_NOACTIVATE
             cls_name.as_ptr(),
             wnd_name.as_ptr(),
-            /*WS_VISIBLE | *//*WS_CAPTION | */ WS_POPUP,
+            WS_POPUPWINDOW, // WS_CHILD,//,//WS_VISIBLE,
+            CW_USEDEFAULT,
             0,
             0,
             0,
-            0,
-            // hwd_parent,
+            // hwd_parent,//; child不行，老是在emacs窗口上面
             std::ptr::null_mut(),
             std::ptr::null_mut(),
             GetModuleHandleW(std::ptr::null_mut()) as HINSTANCE,
@@ -123,15 +154,14 @@ fn create_shadow_window(hwd_parent: HWND) -> Option<ShadowData> {
         let h = rc.bottom - rc.top;
         let sd = ShadowData {
             hwnd: m_h_wnd as usize,
-            width: AtomicU16::new((w).try_into().unwrap()),
-            height: AtomicU16::new((h).try_into().unwrap()),
-            xpos: AtomicU16::new(x.try_into().unwrap()),
-            ypos: AtomicU16::new(y.try_into().unwrap()),
+            width: AtomicU16::new((w).try_into().unwrap_or(0)),
+            height: AtomicU16::new((h).try_into().unwrap_or(0)),
+            xpos: AtomicU16::new(x.try_into().unwrap_or(0)),
+            ypos: AtomicU16::new(y.try_into().unwrap_or(0)),
             org_winproc: 0,
         };
-        set_window_pos(&sd);
-        ShowWindow(m_h_wnd, SW_SHOW);
-        UpdateWindow(m_h_wnd);
+        set_window_pos(&sd, Some(hwd_parent));
+        redraw_window(&sd);
         return Some(sd);
     }
 }
@@ -169,41 +199,18 @@ fn redraw(hdc: HDC, pthis: &ShadowData) {
         }
     }
 }
-fn redraw_window(hwnd: HWND) {
-    unsafe{
-        let mut rc: RECT = std::mem::zeroed();
-        GetWindowRect(hwnd, &mut rc as *mut _);
-        InvalidateRect(hwnd, &rc as *const _, TRUE);
-        UpdateWindow(hwnd);
+fn redraw_window(pthis: &ShadowData) {
+    return;
+    debug_output("child redraw_window".to_owned());
+    unsafe {
+        let hdc = GetDC(pthis.hwnd as HWND);
+        if !hdc.is_null() {
+            redraw(hdc, &pthis);
+            ReleaseDC(pthis.hwnd as HWND, hdc);
+        }
     }
-    
-    // unsafe {
-    //     let hdc = GetDC(hwnd);
-    //     if !hdc.is_null() {
-    //         redraw(hdc, pthis);
-    //         ReleaseDC(hwnd, hdc);
-    //     }
-    // }
 }
 
-fn set_window_pos(pthis: &ShadowData) {
-    let x = pthis.xpos.load(Ordering::SeqCst).into();
-    let y = pthis.ypos.load(Ordering::SeqCst).into();
-    let w = pthis.width.load(Ordering::SeqCst).into();
-    let h = pthis.height.load(Ordering::SeqCst).into();
-    unsafe {
-        MoveWindow(pthis.hwnd as HWND, x, y, w, h, TRUE);
-        // SetWindowPos(
-        //     pthis.hwnd as HWND,
-        //     std::ptr::null_mut(),
-        //     x,
-        //     y,
-        //     w,
-        //     h,
-        //     SWP_SHOWWINDOW | SWP_NOACTIVATE, // SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER,
-        // )
-    };
-}
 extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     unsafe {
         let data;
@@ -223,8 +230,8 @@ extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPA
             debug_output(format!("WM_MOVE, x:{}, y:{}", x, y));
             pthis.xpos.store(x, Ordering::SeqCst);
             pthis.ypos.store(y, Ordering::SeqCst);
-            set_window_pos(&pthis);
-            ShowWindow(pthis.hwnd as HWND, SW_SHOW);
+            set_window_pos(&pthis, Some(hwnd));
+            // ShowWindow(pthis.hwnd as HWND, SW_SHOWNA);
         }
         if msg == WM_ERASEBKGND {
             // debug_output("WM_ERASEBKGND".to_owned());
@@ -237,8 +244,8 @@ extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPA
                 // 缩小时长宽都成0了，不能保存，否则restore时得不到长宽
                 pthis.width.store(w, Ordering::SeqCst);
                 pthis.height.store(h, Ordering::SeqCst);
-                set_window_pos(&pthis);
-                redraw_window(pthis.hwnd as HWND);
+                set_window_pos(&pthis, Some(hwnd));
+                redraw_window(&pthis);
             }
             if SIZE_MAXIMIZED == wparam || SIZE_MINIMIZED == wparam {
                 if SIZE_MINIMIZED == wparam {
@@ -256,26 +263,20 @@ extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPA
                 ShowWindow(pthis.hwnd as HWND, SW_HIDE);
             } else {
                 debug_output("WM_SHOWWINDOW SHOW".to_owned());
-                ShowWindow(pthis.hwnd as HWND, SW_SHOW);
+                ShowWindow(pthis.hwnd as HWND, SW_SHOWNA);
             }
         }
         if msg == WM_PAINT {
-            debug_output("WM_PAINT".to_owned());
-            let mut ps: PAINTSTRUCT = std::mem::zeroed();
-            let hdc = BeginPaint(hwnd, &mut ps as *mut _);
-            FillRect(hdc, &ps.rcPaint, SHADOW_BRUSH as *mut _);
-            EndPaint(hwnd, &ps);
+            debug_output("parent WM_PAINT".to_owned());
+            // update_shadow_window(pthis.hwnd as HWND);
+            redraw_window(&pthis);
+        }
+        if msg == WM_EXITSIZEMOVE {
+            redraw_window(&pthis);
         }
         if msg == WM_SETFOCUS {
             debug_output("WM_SETFOCUS".to_owned());
-            // 解决切换回来不显示问题
-            // redraw_window(pthis.hwnd as HWND);
-            // ShowWindow(pthis.hwnd as HWND, SW_HIDE);
-            // ShowWindow(pthis.hwnd as HWND, SW_SHOW);
-            // SetWindowPos(pthis.hwnd as HWND, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-            // SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
         }
-        // TODO: 暂时不做删除，也不会有很多窗口
         if msg == WM_DESTROY {
             debug_output("WM_DESTROY".to_owned());
             ShowWindow(pthis.hwnd as HWND, SW_HIDE);
@@ -380,7 +381,6 @@ fn set_background_transparent_one_frame(hwnd: HWND, r: u8, g: u8, b: u8) {
 
 fn enable_shadow_windows(enable: bool, alpha: u8) {
     unsafe {
-        IS_BACKGROUND_TRANSPARENT_MODE = enable;
         let mut temp = Vec::new();
         {
             let sw = SHADOW_WNDOWS.lock().unwrap();
@@ -391,7 +391,7 @@ fn enable_shadow_windows(enable: bool, alpha: u8) {
         for hwnd in temp {
             if enable {
                 set_transparent_one_frame(alpha, hwnd as HWND);
-                ShowWindow(hwnd as HWND, SW_SHOW);
+                ShowWindow(hwnd as HWND, SW_SHOWNA);
             } else {
                 ShowWindow(hwnd as HWND, SW_HIDE);
             }
@@ -417,7 +417,7 @@ pub fn set_all_frame(alpha: u8) -> Result<()> {
             set_transparent_one_frame(alpha, h);
         }
     }
-    Ok(())
+    Ok(())
 }
 
 static mut ORG_R: u8 = 0;
@@ -444,14 +444,56 @@ pub fn set_background(alpha: u8, r: u8, g: u8, b: u8) -> Result<()> {
         if SHADOW_BRUSH.is_null() {
             debug_output("SHADOW_BRUSH.is_null !".to_owned());
         }
+        let mut enable = true;
+        let emacs_windows = get_current_process_wnd();
         // 先给所有Emacs窗口设置透明颜色
-        if let Some(hwnd) = get_current_process_wnd() {
-            for h in hwnd {
-                hook_emacs_windproc(h);
-                set_background_transparent_one_frame(h, r, g, b);
+        if let Some(hwnd) = &emacs_windows {
+            for hp in hwnd {
+                let h = *hp;
+                if alpha != 255 {
+                    hook_emacs_windproc(h);
+                    set_background_transparent_one_frame(h, r, g, b);
+                } else {
+                    // 目前是TOPMOST实现的文字不透明，背景透明，因此在255不透明时去掉TOPMOST
+                    remove_topmost(h);
+                    set_transparent_one_frame(255, h);
+                    enable = false;
+                }
             }
         }
-        enable_shadow_windows(true, alpha);
+        enable_shadow_windows(enable, alpha);
+
+        // 再把emacs置顶一下
+        if alpha != 255{
+            if let Some(hwnd) = &emacs_windows {
+                for hp in hwnd {
+                    // ShowWindow(*hp as HWND, SW_SHOWNA);
+                    SetWindowPos(
+                        *hp,
+                        HWND_TOPMOST, //HWND_TOP
+                        0,
+                        0,
+                        0,
+                        0,
+                        SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE,
+                    );
+                }
+            }    
+        }
     }
     Ok(())
+}
+
+fn remove_topmost(h: HWND) {
+    unsafe {
+        SetWindowPos(
+            h,
+            HWND_NOTOPMOST, //HWND_TOP
+            0,
+            0,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOMOVE,
+        );
+    }
 }
