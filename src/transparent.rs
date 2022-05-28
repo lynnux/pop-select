@@ -21,7 +21,7 @@ use winapi::um::winuser::*;
 // 查看过release，确实把format!给优化了，没有内存分配
 macro_rules! debug_output {
     ($str:expr) => {
-        #[cfg(debug_assertions)]
+        // #[cfg(debug_assertions)]
         #[allow(unused_unsafe)]
         unsafe {
             use winapi::um::debugapi::*;
@@ -106,33 +106,47 @@ lazy_static! {
     static ref SHADOW_WNDOWS: Mutex<HashMap<usize, ShadowDataPtr>> = Mutex::new(HashMap::new());
 }
 static mut SHADOW_BRUSH: HBRUSH = std::ptr::null_mut();
+static mut SHADOW_DISABLED: bool = false;
 
 fn set_window_pos(pthis: &ShadowData, parent: Option<HWND>) {
     let x = pthis.xpos.load(Ordering::SeqCst).into();
     let y = pthis.ypos.load(Ordering::SeqCst).into();
     let w = pthis.width.load(Ordering::SeqCst).into();
     let h = pthis.height.load(Ordering::SeqCst).into();
+
     unsafe {
-        SetWindowPos(
-            pthis.hwnd as HWND,
-            HWND_TOPMOST, //std::ptr::null_mut(),//HWND_TOPMOST, //,//HWND_NOTOPMOST,//
-            x,
-            y,
-            w,
-            h,
-            //SWP_SHOWWINDOW | SWP_NOACTIVATE,
-            SWP_SHOWWINDOW | SWP_NOACTIVATE, // | , // SWP_NOSIZE  SWP_NOZORDER
-        );
-        if let Some(hp) = parent {
+        if SHADOW_DISABLED {
+            // 非透明情况下仍然需要更新位置，不然重新透明时窗口会挫位
             SetWindowPos(
-                hp,
-                HWND_TOPMOST, //HWND_TOP
-                0,
-                0,
-                0,
-                0,
-                SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE,
+                pthis.hwnd as HWND,
+                std::ptr::null_mut(),
+                x,
+                y,
+                w,
+                h,
+                SWP_HIDEWINDOW | SWP_NOACTIVATE,
             );
+        } else {
+            SetWindowPos(
+                pthis.hwnd as HWND,
+                HWND_TOPMOST,
+                x,
+                y,
+                w,
+                h,
+                SWP_SHOWWINDOW | SWP_NOACTIVATE, // SWP_NOSIZE  SWP_NOZORDER
+            );
+            if let Some(hp) = parent {
+                SetWindowPos(
+                    hp,
+                    HWND_TOPMOST,
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE,
+                );
+            }
         }
     }
 }
@@ -183,7 +197,7 @@ fn create_shadow_window(hwd_parent: HWND) -> Option<ShadowData> {
             org_winproc: 0,
         };
         set_window_pos(&sd, Some(hwd_parent));
-        redraw_window(&sd);
+
         return Some(sd);
     }
 }
@@ -209,31 +223,17 @@ unsafe extern "system" fn cwndshadow_window_proc(
     return DefWindowProcA(hwnd, msg, wparam, lparam);
 }
 
-// fn redraw(hdc: HDC, pthis: &ShadowData) {
-//     unsafe {
-//         if !SHADOW_BRUSH.is_null() {
-//             let mut rc: RECT = std::mem::zeroed();
-//             rc.left = 0;
-//             rc.top = 0;
-//             rc.right = pthis.width.load(Ordering::SeqCst) as i32;
-//             rc.bottom = pthis.height.load(Ordering::SeqCst) as i32;
-//             FillRect(hdc, &rc, SHADOW_BRUSH as *mut _);
-//         }
-//     }
-// }
-fn redraw_window(_pthis: &ShadowData) {
-    debug_output!("child redraw_window".to_owned());
-    return;
-    
-    // unsafe {
-    //     let hdc = GetDC(pthis.hwnd as HWND);
-    //     if !hdc.is_null() {
-    //         redraw(hdc, &pthis);
-    //         ReleaseDC(pthis.hwnd as HWND, hdc);
-    //     }
-    // }
+fn show_window(hwnd: HWND, show: bool) {
+    unsafe {
+        if show {
+            if !SHADOW_DISABLED {
+                ShowWindow(hwnd as HWND, SW_SHOWNA);
+            }
+        } else {
+            ShowWindow(hwnd as HWND, SW_HIDE);
+        }
+    }
 }
-
 extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     unsafe {
         let data;
@@ -245,7 +245,6 @@ extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPA
                 return DefWindowProcW(hwnd, msg, wparam, lparam);
             }
         }
-        // debug_output!(format!("message:{}", msg));
         let pthis = data;
         if msg == WM_MOVE {
             let x = LOWORD(lparam as DWORD);
@@ -267,11 +266,10 @@ extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPA
                 pthis.width.store(w, Ordering::SeqCst);
                 pthis.height.store(h, Ordering::SeqCst);
                 set_window_pos(&pthis, Some(hwnd));
-                redraw_window(&pthis);
             }
             if SIZE_MAXIMIZED == wparam || SIZE_MINIMIZED == wparam {
                 if SIZE_MINIMIZED == wparam {
-                    ShowWindow(pthis.hwnd as HWND, SW_HIDE);
+                    show_window(pthis.hwnd as HWND, false);
                     out += " SIZE_MINIMIZED";
                 } else {
                     out += " SIZE_MINIMIZED";
@@ -282,26 +280,21 @@ extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPA
         if msg == WM_SHOWWINDOW {
             if wparam == 0 {
                 debug_output!("WM_SHOWWINDOW SW_HIDE".to_owned());
-                ShowWindow(pthis.hwnd as HWND, SW_HIDE);
+                show_window(pthis.hwnd as HWND, false);
             } else {
                 debug_output!("WM_SHOWWINDOW SHOW".to_owned());
-                ShowWindow(pthis.hwnd as HWND, SW_SHOWNA);
+                show_window(pthis.hwnd as HWND, true);
             }
         }
         if msg == WM_PAINT {
             debug_output!("parent WM_PAINT".to_owned());
-            // update_shadow_window(pthis.hwnd as HWND);
-            redraw_window(&pthis);
-        }
-        if msg == WM_EXITSIZEMOVE {
-            redraw_window(&pthis);
         }
         if msg == WM_SETFOCUS {
             debug_output!("WM_SETFOCUS".to_owned());
         }
         if msg == WM_DESTROY {
             debug_output!("WM_DESTROY".to_owned());
-            ShowWindow(pthis.hwnd as HWND, SW_HIDE);
+            show_window(pthis.hwnd as HWND, false);
             DestroyWindow(pthis.hwnd as HWND);
         }
         if msg == WM_NCDESTROY {
@@ -361,7 +354,6 @@ fn get_current_process_wnd() -> Option<Vec<HWND>> {
     }
 }
 
-
 fn set_transparent_one_frame(alpha: u8, hwnd: HWND) {
     unsafe {
         let old_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
@@ -388,21 +380,19 @@ fn set_background_transparent_one_frame(hwnd: HWND, r: u8, g: u8, b: u8) {
 }
 
 fn enable_shadow_windows(enable: bool, alpha: u8) {
-    unsafe {
-        let mut temp = Vec::new();
-        {
-            let sw = SHADOW_WNDOWS.lock().unwrap();
-            for (_, s) in sw.iter() {
-                temp.push(s.hwnd);
-            }
+    let mut temp = Vec::new();
+    {
+        let sw = SHADOW_WNDOWS.lock().unwrap();
+        for (_, s) in sw.iter() {
+            temp.push(s.hwnd);
         }
-        for hwnd in temp {
-            if enable {
-                set_transparent_one_frame(alpha, hwnd as HWND);
-                ShowWindow(hwnd as HWND, SW_SHOWNA);
-            } else {
-                ShowWindow(hwnd as HWND, SW_HIDE);
-            }
+    }
+    for hwnd in temp {
+        if enable {
+            set_transparent_one_frame(alpha, hwnd as HWND);
+            show_window(hwnd as HWND, true);
+        } else {
+            show_window(hwnd as HWND, false);
         }
     }
 }
@@ -454,11 +444,12 @@ pub fn set_background(alpha: u8, r: u8, g: u8, b: u8) -> Result<()> {
         }
         let mut enable = true;
         let emacs_windows = get_current_process_wnd();
+        SHADOW_DISABLED = alpha == 255;
         // 先给所有Emacs窗口设置透明颜色
         if let Some(hwnd) = &emacs_windows {
             for hp in hwnd {
                 let h = *hp;
-                if alpha != 255 {
+                if !SHADOW_DISABLED {
                     hook_emacs_windproc(h);
                     set_background_transparent_one_frame(h, r, g, b);
                 } else {
@@ -472,7 +463,7 @@ pub fn set_background(alpha: u8, r: u8, g: u8, b: u8) -> Result<()> {
         enable_shadow_windows(enable, alpha);
 
         // 再把emacs置顶一下
-        if alpha != 255{
+        if !SHADOW_DISABLED {
             if let Some(hwnd) = &emacs_windows {
                 for hp in hwnd {
                     SetWindowPos(
@@ -485,7 +476,7 @@ pub fn set_background(alpha: u8, r: u8, g: u8, b: u8) -> Result<()> {
                         SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE,
                     );
                 }
-            }    
+            }
         }
     }
     Ok(())
