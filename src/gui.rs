@@ -3,6 +3,8 @@ use std::rc::Rc;
 use winapi::shared::minwindef::*;
 use winapi::um::processthreadsapi::*;
 use winapi::um::winuser::*;
+use crate::transparent::debug_output;
+use crate::to_wstring;
 
 // hotkey参考 https://blog.csdn.net/x356982611/article/details/16341797
 static mut HACCEL: usize = 0;
@@ -12,6 +14,8 @@ pub fn popup(
     pop_list: Vec<String>,
     to_sel: usize,
 ) -> Option<usize> {
+    // 确认不是emacs gui线程，所以头次运行经常会失去焦点
+    // debug_output!(format!("popup tid: {}", winapi::um::processthreadsapi::GetCurrentThreadId()));
     if unsafe { HACCEL == 0 } {
         unsafe {
             HACCEL =

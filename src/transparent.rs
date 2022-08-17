@@ -39,6 +39,7 @@ macro_rules! debug_output {
         }
     };
 }
+pub(crate) use debug_output; // 这样其它mod才能用
 
 // https://github.com/duilib/duilib/blob/bbc817e0a134cda1dc5be6a38864257649273095/DuiLib/Utils/WndShadow.cpp#L197-L307
 // msdn: https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features
