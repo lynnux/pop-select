@@ -67,3 +67,12 @@ fn to_wstring(s: &str) -> Vec<u16> {
         .chain(std::iter::once(0))
         .collect()
 }
+
+// 让标题和滚动条支持in10的dark mode，emacs28.1版本不支持，最新版本支持，但最新版本有点卡
+// https://github.com/emacs-mirror/emacs/blob/1a9175a0de98676ac9aa1dec8f3c5c585ce2a9cd/src/w32fns.c#L11209-L11238
+// https://github.com/godotengine/godot-proposals/issues/1868
+#[defun]
+fn ensure_all_window_dark_mode() -> Result<usize> {
+    crate::gui::ensure_all_window_dark_mode();
+    Ok(0)
+}
