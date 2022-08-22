@@ -14,7 +14,7 @@
 (when (functionp 'pop-select/transparent-set-all-frame)
     (pop-select/transparent-set-all-frame 220))
 ```
-- 设置文字不透明，背景透明。由于实现的限制，该功能打开时会使Emacs置顶，当设置为255即不透明时取消置顶
+- [**有bug不建议使用!**]设置文字不透明，背景透明。由于实现的限制，该功能打开时会使Emacs置顶，当设置为255即不透明时取消置顶
 ```
 (pop-select/transparent-set-background ALPHA R G B) ;; ALPHA范围0-255，0全透明，255不透明。R G B为rgb拆分数值。
 ```
@@ -50,9 +50,6 @@
 后面这种效果图：
 ![gif](gif/1.gif)
 
-## 已知问题 ##
-第2种方式有个问题，如果emacs主题的背景色要跟其它程序的背景色一样，鼠标操作点击会穿透emacs点到其它程序，解决办法是稍调背景色。
-还有最大化时打开透明bottom有点挫位，还有部分背景色可能没透明，只需要移动下emacs，或者缩小/还原emacs就能解决了，问题不大。
 
 # 2. CTRL+TAB弹出窗口选择列表 #
 `pop-select/pop-select`弹出一个竖型列表窗口，然后可以按ctrl+tab切换到下一项，ctrl+tab+shift切换到上一项，释放按键后返回所选项给emacs
@@ -128,4 +125,7 @@
 ```
 效果图跟上面一样：
 ![gif](gif/2.gif)
+
+# 4.开启win10的dark mode(emacs29版本自带，适合29以下版本)
+调用`(pop-select/ensure-all-window-dark-mode)`即可，不过目前标题可能不会立即刷新，建议加个`(w32-send-sys-command #xf030)`最大化就可以了
 
