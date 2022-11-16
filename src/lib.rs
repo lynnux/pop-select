@@ -1,5 +1,6 @@
 ﻿mod beacon;
 mod gui;
+mod shellmenu;
 mod transparent;
 
 // (module-load "pop_select")
@@ -15,6 +16,7 @@ use emacs::{
 };
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
+use winapi::um::debugapi::OutputDebugStringW;
 
 // Emacs won't load the module without this.
 emacs::plugin_is_GPL_compatible!();
@@ -74,5 +76,17 @@ fn to_wstring(s: &str) -> Vec<u16> {
 #[defun]
 fn ensure_all_window_dark_mode() -> Result<usize> {
     crate::gui::ensure_all_window_dark_mode();
+    Ok(0)
+}
+
+#[defun]
+fn popup_shell_menu(path: String, x: usize, y: usize) -> Result<usize> {
+    if let Err(e) = crate::shellmenu::pop_shell_menu(path, x, y) {
+        let es = format!("popup_shell_menu error: {}", e);
+        let esw = to_wstring(&es);
+        unsafe {
+            OutputDebugStringW(esw.as_ptr());
+        }
+    }
     Ok(0)
 }

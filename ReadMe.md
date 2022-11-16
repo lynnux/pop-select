@@ -129,3 +129,9 @@
 # 4.开启win10的dark mode(emacs29版本自带，适合29以下版本)
 调用`(pop-select/ensure-all-window-dark-mode)`即可，不过目前标题可能不会立即刷新，建议加个`(w32-send-sys-command #xf030)`最大化就可以了
 
+# 5.弹出shell右键菜单
+```
+(pop-select/popup-shell-menu PATH X Y)
+```
+PATH即路径，目录/文件都可以，X、Y即屏幕座标，如何都是0，那么会在当前鼠标指针位置弹出。
+我是拿来配合dired使用
