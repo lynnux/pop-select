@@ -131,7 +131,27 @@
 
 # 5.弹出shell右键菜单
 ```
-(pop-select/popup-shell-menu PATH X Y)
+(pop-select/popup-shell-menu PATH X Y) ; PATH即路径，目录/文件都可以，X、Y即屏幕座标，如何都是0，那么会在当前鼠标指针位置弹出。
 ```
-PATH即路径，目录/文件都可以，X、Y即屏幕座标，如何都是0，那么会在当前鼠标指针位置弹出。额外添加第1项为路径的文件名。
+额外添加第1项为路径的文件名。
 TODO: 点击空白处目前不会消失。
+参考配置：
+```
+在dired里用鼠标右键点击文件：
+(when (functionp 'pop-select/popup-shell-menu)
+    ;; TODO: 目前可以把外面的粘贴进来，但是dired里复制粘贴是不行的
+    (define-key dired-mode-map (kbd "<mouse-3>") 
+      (lambda (event)
+        (interactive "e")
+        (let ((pt (posn-point (event-end event)))
+              path)
+          (goto-char pt) ;; 选中指针下的文件
+          (setq path (dired-get-filename nil t))
+          (unless path ;可能是点击了空白处，那么就取当前目录
+            (setq path (dired-current-directory)))
+          ;; 路径用/分隔的话弹不出来
+          (pop-select/popup-shell-menu (replace-regexp-in-string "/" "\\\\" path) 0 0)
+          ))))
+```
+效果图跟上面一样：
+![gif](gif/shell.gif)
