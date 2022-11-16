@@ -33,6 +33,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #pragma warning (pop)
 #include <shlobj.h>
 #include <commctrl.h>
+#include <string>  // atlstr.h不行，rust编译也看不到错误
 #pragma comment (lib,"comctl32.lib")
 
 #define CShellMenu_idCmdFirst 0xF000// Cmd must be on WORD see CMINVOKECOMMANDINFO.lpVerb
@@ -48,6 +49,7 @@ private:
     IContextMenu* pContextMenu;
     IContextMenu2* pContextMenu2;
     IContextMenu3* pContextMenu3;
+    std::wstring name_;
 
     void CommonConstructor(HWND hWndDialog);
     BOOL SubClassWindowProc();

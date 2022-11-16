@@ -6,7 +6,7 @@ extern "C" {
     fn PopupShellMenu(h: winapi::shared::windef::HWND, path: LPCWSTR, x: i32, y: i32);
 }
 
-pub fn pop_shell_menu(path: String, x: usize, y: usize) -> Result<(), NwgError> {
+pub fn pop_shell_menu(path: String, x: i32, y: i32) -> Result<(), NwgError> {
     // use winapi::um::winuser::GetForegroundWindow;
     // let h = GetForegroundWindow();
     // 测试发现SetWindowSubclass跨线程不会成功，因为emacs module的运行线程不是gui线程。所以这里需要跟ctrl+tab那样的处理机制。
@@ -26,7 +26,7 @@ pub fn pop_shell_menu(path: String, x: usize, y: usize) -> Result<(), NwgError> 
             if msg == (WM_USER + 1) {
                 unsafe {
                     let p = crate::to_wstring(&path);
-                    PopupShellMenu(hwnd, p.as_ptr(), x as i32, y as i32);
+                    PopupShellMenu(hwnd, p.as_ptr(), x, y);
                 }
                 nwg::stop_thread_dispatch();
             }

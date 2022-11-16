@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <windows.h>
 #include <commctrl.h>
 #include "shellmenu.h"
+#include <Shlwapi.h>
 
 //-----------------------------------------------------------------------------
 // Name: CShellMenu
@@ -70,6 +71,10 @@ CShellMenu::CShellMenu(HWND hWndDialog,int SpecialFolderCSIDL,BOOL bFolderBackgr
 //-----------------------------------------------------------------------------
 CShellMenu::CShellMenu(HWND hWndDialog,TCHAR* FileOrDirectoryPath)
 {
+    name_ = FileOrDirectoryPath;
+    std::wstring temp = PathFindFileNameW(name_.c_str());
+    name_.swap(temp);
+    
     this->CommonConstructor(hWndDialog);
     this->bFillMenuSuccess=this->FillMenu(FileOrDirectoryPath);
 }
@@ -470,6 +475,9 @@ BOOL CShellMenu::Show(int x,int y)
 
     // add window subclassing
     this->SubClassWindowProc();
+
+    InsertMenu(this->hPopUpMenu, 0, 0x0400|0x800, 2, 0);
+    InsertMenu(this->hPopUpMenu, 0, 0x0400|0x002, 1, name_.c_str());
 
     // show popupmenu
     CmdId=(UINT)::TrackPopupMenuEx(this->hPopUpMenu,TPM_LEFTALIGN|TPM_RETURNCMD,x,y,this->hWndDialog,NULL);
