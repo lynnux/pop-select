@@ -1,21 +1,21 @@
 ﻿extern crate native_windows_gui as nwg;
 use nwg::NwgError;
-use winapi::{shared::ntdef::LPCWSTR, um::{winuser::*, debugapi::OutputDebugStringW}};
+use winapi::{shared::ntdef::LPCWSTR, um::{winuser::*}};
+use winapi::um::ole2::OleInitialize;
 
 extern "C" {
     fn PopupShellMenu(h: winapi::shared::windef::HWND, path: *const LPCWSTR, x: i32, y: i32);
+}
+
+pub fn shellmenu_init(){
+    // 复制到进程外需要调用OleInitialize
+    unsafe{OleInitialize(std::ptr::null_mut());}
 }
 
 pub fn pop_shell_menu(paths: Vec<String>, x: i32, y: i32) -> Result<(), NwgError> {
     // use winapi::um::winuser::GetForegroundWindow;
     // let h = GetForegroundWindow();
     // 测试发现SetWindowSubclass跨线程不会成功，因为emacs module的运行线程不是gui线程。所以这里需要跟ctrl+tab那样的处理机制。
-
-    // let ax = format!("shell assll: {:?}", paths);
-    // let esw = crate::to_wstring(&ax);
-    // unsafe {
-    //     OutputDebugStringW(esw.as_ptr());
-    // }
     
     nwg::init()?; // 必须，会注册ngw的类
 

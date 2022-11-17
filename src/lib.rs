@@ -26,6 +26,7 @@ fn init(_: &Env) -> Result<()> {
     gui::gui_init();
     beacon::becaon_init();
     transparent::transparent_init();
+    shellmenu::shellmenu_init();
     Ok(())
 }
 

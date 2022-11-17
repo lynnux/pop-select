@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 emacs = "0.11.0"
 native-windows-gui = "1.0.12"
-winapi = {version="0.3", features=["minwindef", "windef", "wingdi", "winuser", "libloaderapi", "processthreadsapi", "basetsd", "debugapi", "errhandlingapi"]}
+winapi = {version="0.3", features=["minwindef", "windef", "wingdi", "winuser", "libloaderapi", "processthreadsapi", "basetsd", "debugapi", "errhandlingapi", "ole2"]}
 lazy_static = "1.4"
 detours-sys = {version="0.1.2"}
 
