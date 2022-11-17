@@ -137,6 +137,7 @@
 (pop-select/popup-shell-menu PATH X Y) ; PATH即路径，目录/文件都可以，X、Y即屏幕座标，如何都是0，那么会在当前鼠标指针位置弹出。
 ```
 额外添加第1项为路径的文件名以避免不知道选中的是哪个文件。
+有个问题，首次弹出menu后，点击空白处可能不会退出menu，这是正常的，后面都正常了。
 TODO: 目前explorer的复制/粘贴可以进dired，但是dired复制粘贴到explorer不行
 
 参考配置：
