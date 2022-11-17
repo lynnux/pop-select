@@ -80,12 +80,20 @@ fn ensure_all_window_dark_mode() -> Result<usize> {
 }
 
 #[defun]
-fn popup_shell_menu(path: String, x: i32, y: i32) -> Result<usize> {
-    if let Err(e) = crate::shellmenu::pop_shell_menu(path, x, y) {
-        let es = format!("popup_shell_menu error: {}", e);
-        let esw = to_wstring(&es);
-        unsafe {
-            OutputDebugStringW(esw.as_ptr());
+fn popup_shell_menu(paths: Vector, x: i32, y: i32) -> Result<usize> {
+    let mut v = Vec::new();
+    if let Ok(s) = paths.size() {
+        for i in 0..s {
+            if let Ok(ss) = paths.get(i) {
+                v.push(ss);
+            }
+        }  
+        if let Err(e) = crate::shellmenu::pop_shell_menu(v, x, y) {
+            let es = format!("popup_shell_menu error: {}", e);
+            let esw = to_wstring(&es);
+            unsafe {
+                OutputDebugStringW(esw.as_ptr());
+            }
         }
     }
     Ok(0)

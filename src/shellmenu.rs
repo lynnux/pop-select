@@ -1,16 +1,22 @@
 ﻿extern crate native_windows_gui as nwg;
 use nwg::NwgError;
-use winapi::{shared::ntdef::LPCWSTR, um::winuser::*};
+use winapi::{shared::ntdef::LPCWSTR, um::{winuser::*, debugapi::OutputDebugStringW}};
 
 extern "C" {
-    fn PopupShellMenu(h: winapi::shared::windef::HWND, path: LPCWSTR, x: i32, y: i32);
+    fn PopupShellMenu(h: winapi::shared::windef::HWND, path: *const LPCWSTR, x: i32, y: i32);
 }
 
-pub fn pop_shell_menu(path: String, x: i32, y: i32) -> Result<(), NwgError> {
+pub fn pop_shell_menu(paths: Vec<String>, x: i32, y: i32) -> Result<(), NwgError> {
     // use winapi::um::winuser::GetForegroundWindow;
     // let h = GetForegroundWindow();
     // 测试发现SetWindowSubclass跨线程不会成功，因为emacs module的运行线程不是gui线程。所以这里需要跟ctrl+tab那样的处理机制。
 
+    // let ax = format!("shell assll: {:?}", paths);
+    // let esw = crate::to_wstring(&ax);
+    // unsafe {
+    //     OutputDebugStringW(esw.as_ptr());
+    // }
+    
     nwg::init()?; // 必须，会注册ngw的类
 
     let mut window = Default::default();
@@ -26,8 +32,16 @@ pub fn pop_shell_menu(path: String, x: i32, y: i32) -> Result<(), NwgError> {
         nwg::bind_raw_event_handler(&window.handle, 0x10000, move |hwnd, msg, _w, _l| {
             if msg == (WM_USER + 1) {
                 unsafe {
-                    let p = crate::to_wstring(&path);
-                    PopupShellMenu(hwnd, p.as_ptr(), x, y);
+                    let mut vp = Vec::new();
+                    for p in &paths {
+                        vp.push(crate::to_wstring(&p));
+                    }
+                    let mut vpr = Vec::new();
+                    for p in &vp{
+                        vpr.push(p.as_ptr());
+                    }
+                    vpr.push(std::ptr::null()); // 以0结尾
+                    PopupShellMenu(hwnd, vpr.as_ptr(), x, y);
                 }
                 nwg::stop_thread_dispatch();
             }

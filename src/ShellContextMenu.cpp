@@ -16,17 +16,20 @@
 // along with this program; if not, write to the Free Software Foundation,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 //
-#include "stdafx.h"
+// #include "stdafx.h"
 #include "ShellContextMenu.h"
 #include <shellapi.h>
-#include "StringUtils.h"
-#include "Registry.h"
-#include "SearchInfo.h"
-#include "LineData.h"
-#include "ResString.h"
-#include "resource.h"
+#include <Shlwapi.h>
+#include "Utils.h"
+// #include "StringUtils.h"
+// #include "Registry.h"
+// #include "SearchInfo.h"
+// #include "LineData.h"
+// #include "ResString.h"
+// #include "resource.h"
 #include <set>
 #include <algorithm>
+#include <memory>
 
 #define MIN_ID 6
 #define MAX_ID 10000
@@ -203,37 +206,37 @@ UINT CShellContextMenu::ShowContextMenu(HWND hWnd, POINT pt)
         m_menu = CreatePopupMenu();
     }
 
-    CRegStdString regEditorCmd(L"Software\\grepWin\\editorcmd");
-    std::wstring  editorCmd = regEditorCmd;
-    if (bPortable)
-        editorCmd = g_iniFile.GetValue(L"global", L"editorcmd", L"");
+    // CRegStdString regEditorCmd(L"Software\\grepWin\\editorcmd");
+    // std::wstring  editorCmd = regEditorCmd;
+    // if (bPortable)
+    //     editorCmd = g_iniFile.GetValue(L"global", L"editorcmd", L"");
 
     if (m_strVector.size() == 1)
     {
-        if (!editorCmd.empty())
-        {
-            ::InsertMenu(m_menu, 1, MF_BYPOSITION | MF_STRING, 5, TranslatedString(g_hInst, IDS_OPENWITHEDITOR).c_str());
-            ::InsertMenu(m_menu, 5, MF_SEPARATOR | MF_BYPOSITION, 0, nullptr);
-        }
+        // if (!editorCmd.empty())
+        // {
+        //     ::InsertMenu(m_menu, 1, MF_BYPOSITION | MF_STRING, 5, TranslatedString(g_hInst, IDS_OPENWITHEDITOR).c_str());
+        //     ::InsertMenu(m_menu, 5, MF_SEPARATOR | MF_BYPOSITION, 0, nullptr);
+        // }
 
         ::InsertMenu(m_menu, 1, MF_BYPOSITION | MF_STRING, 1, TranslatedString(g_hInst, IDS_OPENCONTAININGFOLDER).c_str());
         ::InsertMenu(m_menu, 2, MF_BYPOSITION | MF_STRING, 2, TranslatedString(g_hInst, IDS_COPYPATH).c_str());
         ::InsertMenu(m_menu, 3, MF_BYPOSITION | MF_STRING, 3, TranslatedString(g_hInst, IDS_COPYFILENAME).c_str());
-        if (!m_lineVector.empty())
-            ::InsertMenu(m_menu, 4, MF_BYPOSITION | MF_STRING, 4, TranslatedString(g_hInst, IDS_COPYRESULT).c_str());
+        // if (!m_lineVector.empty())
+        //     ::InsertMenu(m_menu, 4, MF_BYPOSITION | MF_STRING, 4, TranslatedString(g_hInst, IDS_COPYRESULT).c_str());
         ::InsertMenu(m_menu, 5, MF_SEPARATOR | MF_BYPOSITION, 0, nullptr);
     }
     else if (m_strVector.size() > 1)
     {
-        if (!editorCmd.empty())
-        {
-            ::InsertMenu(m_menu, 1, MF_BYPOSITION | MF_STRING, 5, TranslatedString(g_hInst, IDS_OPENWITHEDITOR).c_str());
-            ::InsertMenu(m_menu, 5, MF_SEPARATOR | MF_BYPOSITION, 0, nullptr);
-        }
+        // if (!editorCmd.empty())
+        // {
+        //     ::InsertMenu(m_menu, 1, MF_BYPOSITION | MF_STRING, 5, TranslatedString(g_hInst, IDS_OPENWITHEDITOR).c_str());
+        //     ::InsertMenu(m_menu, 5, MF_SEPARATOR | MF_BYPOSITION, 0, nullptr);
+        // }
         ::InsertMenu(m_menu, 2, MF_BYPOSITION | MF_STRING, 2, TranslatedString(g_hInst, IDS_COPYPATHS).c_str());
         ::InsertMenu(m_menu, 3, MF_BYPOSITION | MF_STRING, 3, TranslatedString(g_hInst, IDS_COPYFILENAMES).c_str());
-        if (!m_lineVector.empty())
-            ::InsertMenu(m_menu, 4, MF_BYPOSITION | MF_STRING, 4, TranslatedString(g_hInst, IDS_COPYRESULTS).c_str());
+        // if (!m_lineVector.empty())
+        //     ::InsertMenu(m_menu, 4, MF_BYPOSITION | MF_STRING, 4, TranslatedString(g_hInst, IDS_COPYRESULTS).c_str());
         ::InsertMenu(m_menu, 5, MF_SEPARATOR | MF_BYPOSITION, 0, nullptr);
     }
     // lets fill the our popup menu
@@ -312,74 +315,74 @@ UINT CShellContextMenu::ShowContextMenu(HWND hWnd, POINT pt)
             break;
             case 4:
             {
-                std::wstring lines;
-                for (auto it = m_lineVector.begin(); it != m_lineVector.end(); ++it)
-                {
-                    if (!lines.empty())
-                        lines += L"\r\n";
-                    for (auto it2 = it->lines.cbegin(); it2 != it->lines.cend(); ++it2)
-                    {
-                        std::wstring l = it2->text;
-                        CStringUtils::trim(l, L"\r\n");
-                        std::replace(l.begin(), l.end(), '\n', ' ');
-                        std::replace(l.begin(), l.end(), '\r', ' ');
+                // std::wstring lines;
+                // for (auto it = m_lineVector.begin(); it != m_lineVector.end(); ++it)
+                // {
+                //     if (!lines.empty())
+                //         lines += L"\r\n";
+                //     for (auto it2 = it->lines.cbegin(); it2 != it->lines.cend(); ++it2)
+                //     {
+                //         std::wstring l = it2->text;
+                //         CStringUtils::trim(l, L"\r\n");
+                //         std::replace(l.begin(), l.end(), '\n', ' ');
+                //         std::replace(l.begin(), l.end(), '\r', ' ');
 
-                        lines += l;
-                    }
-                }
-                WriteAsciiStringToClipboard(lines.c_str(), hWnd);
+                //         lines += l;
+                //     }
+                // }
+                // WriteAsciiStringToClipboard(lines.c_str(), hWnd);
             }
             break;
             case 5:
             {
-                if (!m_lineVector.empty())
-                {
-                    for (auto it = m_lineVector.cbegin(); it != m_lineVector.cend(); ++it)
-                    {
-                        for (auto it2 = it->lines.cbegin(); it2 != it->lines.cend(); ++it2)
-                        {
-                            std::wstring cmd = editorCmd;
-                            SearchReplace(cmd, L"%path%", it->path.c_str());
-                            wchar_t buf[40] = {0};
-                            swprintf_s(buf, L"%ld", it2->number);
-                            SearchReplace(cmd, L"%line%", buf);
+                // if (!m_lineVector.empty())
+                // {
+                //     for (auto it = m_lineVector.cbegin(); it != m_lineVector.cend(); ++it)
+                //     {
+                //         for (auto it2 = it->lines.cbegin(); it2 != it->lines.cend(); ++it2)
+                //         {
+                //             std::wstring cmd = editorCmd;
+                //             SearchReplace(cmd, L"%path%", it->path.c_str());
+                //             wchar_t buf[40] = {0};
+                //             swprintf_s(buf, L"%ld", it2->number);
+                //             SearchReplace(cmd, L"%line%", buf);
 
-                            STARTUPINFO         startupInfo;
-                            PROCESS_INFORMATION processInfo;
-                            SecureZeroMemory(&startupInfo, sizeof(startupInfo));
-                            startupInfo.cb = sizeof(STARTUPINFO);
-                            SecureZeroMemory(&processInfo, sizeof(processInfo));
-                            CreateProcess(nullptr, const_cast<wchar_t*>(cmd.c_str()), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &startupInfo, &processInfo);
-                            CloseHandle(processInfo.hThread);
-                            CloseHandle(processInfo.hProcess);
-                        }
-                    }
-                }
-                else
-                {
-                    for (auto it = m_strVector.begin(); it != m_strVector.end(); ++it)
-                    {
-                        std::wstring cmd = editorCmd;
-                        SearchReplace(cmd, L"%path%", it->filePath.c_str());
-                        if (!it->matchLinesNumbers.empty())
-                        {
-                            wchar_t buf[40] = {0};
-                            swprintf_s(buf, L"%ld", it->matchLinesNumbers[0]);
-                            SearchReplace(cmd, L"%line%", buf);
-                        }
-                        else
-                            SearchReplace(cmd, L"%line%", L"0");
+                //             STARTUPINFO         startupInfo;
+                //             PROCESS_INFORMATION processInfo;
+                //             SecureZeroMemory(&startupInfo, sizeof(startupInfo));
+                //             startupInfo.cb = sizeof(STARTUPINFO);
+                //             SecureZeroMemory(&processInfo, sizeof(processInfo));
+                //             CreateProcess(nullptr, const_cast<wchar_t*>(cmd.c_str()), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &startupInfo, &processInfo);
+                //             CloseHandle(processInfo.hThread);
+                //             CloseHandle(processInfo.hProcess);
+                //         }
+                //     }
+                // }
+                // else
+                // {
+                    // for (auto it = m_strVector.begin(); it != m_strVector.end(); ++it)
+                    // {
+                    //     std::wstring cmd = editorCmd;
+                    //     SearchReplace(cmd, L"%path%", it->filePath.c_str());
+                    //     if (!it->matchLinesNumbers.empty())
+                    //     {
+                    //         wchar_t buf[40] = {0};
+                    //         swprintf_s(buf, L"%ld", it->matchLinesNumbers[0]);
+                    //         SearchReplace(cmd, L"%line%", buf);
+                    //     }
+                    //     else
+                    //         SearchReplace(cmd, L"%line%", L"0");
 
-                        STARTUPINFO         startupInfo;
-                        PROCESS_INFORMATION processInfo;
-                        SecureZeroMemory(&startupInfo, sizeof(startupInfo));
-                        startupInfo.cb = sizeof(STARTUPINFO);
-                        SecureZeroMemory(&processInfo, sizeof(processInfo));
-                        CreateProcess(nullptr, const_cast<wchar_t*>(cmd.c_str()), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &startupInfo, &processInfo);
-                        CloseHandle(processInfo.hThread);
-                        CloseHandle(processInfo.hProcess);
-                    }
-                }
+                    //     STARTUPINFO         startupInfo;
+                    //     PROCESS_INFORMATION processInfo;
+                    //     SecureZeroMemory(&startupInfo, sizeof(startupInfo));
+                    //     startupInfo.cb = sizeof(STARTUPINFO);
+                    //     SecureZeroMemory(&processInfo, sizeof(processInfo));
+                    //     CreateProcess(nullptr, const_cast<wchar_t*>(cmd.c_str()), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &startupInfo, &processInfo);
+                    //     CloseHandle(processInfo.hThread);
+                    //     CloseHandle(processInfo.hProcess);
+                    // }
+                // }
             }
             break;
         }
@@ -403,7 +406,8 @@ void CShellContextMenu::InvokeCommand(LPCONTEXTMENU pContextMenu, UINT idCommand
     pContextMenu->InvokeCommand(&cmi);
 }
 
-void CShellContextMenu::SetObjects(const std::vector<CSearchInfo>& strVector, const std::vector<LineData>& lineVector)
+void CShellContextMenu::SetObjects(const std::vector<CSearchInfo>& strVector// , const std::vector<LineData>& lineVector
+                                   )
 {
     // free all allocated data
     if (m_psfFolder && bDelete)
@@ -426,9 +430,9 @@ void CShellContextMenu::SetObjects(const std::vector<CSearchInfo>& strVector, co
     int          succeededItems = 0;
     LPITEMIDLIST pidl           = nullptr;
     m_strVector.clear();
-    m_lineVector.clear();
+    // m_lineVector.clear();
     m_strVector.reserve(m_nItems);
-    m_lineVector.reserve(m_nItems);
+    // m_lineVector.reserve(m_nItems);
 
     size_t bufSize  = 1024;
     auto   filePath = std::make_unique<WCHAR[]>(bufSize);
@@ -444,8 +448,8 @@ void CShellContextMenu::SetObjects(const std::vector<CSearchInfo>& strVector, co
         {
             m_pidlArray[succeededItems++] = pidl; // copy pidl to pidlArray
             m_strVector.push_back(strVector[i]);
-            if (lineVector.size() > static_cast<size_t>(i))
-                m_lineVector.push_back(lineVector[i]);
+            // if (lineVector.size() > static_cast<size_t>(i))
+            //     m_lineVector.push_back(lineVector[i]);
         }
     }
     m_pidlArrayItems = succeededItems;

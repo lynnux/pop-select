@@ -3,6 +3,11 @@
 ```
 (ignore-errors (module-load "pop_select.dll全路径，如果没有加入PATH环境变量目录里的话"))
 ```
+
+编译
+===
+自行编译的话c++编译器至少需要支持c++17
+
 功能介绍
 ===
 本Emacs module专为windows设计。主要功能有：

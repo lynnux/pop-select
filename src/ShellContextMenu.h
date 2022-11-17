@@ -20,6 +20,7 @@
 #include <vector>
 #include <shobjidl.h>
 #include <shlobj.h>
+#include "Utils.h"
 
 // ReSharper disable once CppInconsistentNaming
 class CIShellFolderHook;
@@ -29,7 +30,8 @@ struct LineData;
 class CShellContextMenu
 {
 public:
-    void SetObjects(const std::vector<CSearchInfo> &strVector, const std::vector<LineData> &lineVector);
+    void SetObjects(const std::vector<CSearchInfo> &strVector// , const std::vector<LineData> &lineVector
+                    );
     UINT ShowContextMenu(HWND hWnd, POINT pt);
     CShellContextMenu();
     virtual ~CShellContextMenu();
@@ -42,7 +44,7 @@ private:
     LPITEMIDLIST *           m_pidlArray;
     int                      m_pidlArrayItems;
     std::vector<CSearchInfo> m_strVector;
-    std::vector<LineData>    m_lineVector;
+    // std::vector<LineData>    m_lineVector;
 
     static void             InvokeCommand(LPCONTEXTMENU pContextMenu, UINT idCommand);
     BOOL                    GetContextMenu(HWND hWnd, void **ppContextMenu, int &iMenuType);
