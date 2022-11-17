@@ -355,7 +355,7 @@ fn get_current_process_wnd() -> Option<Vec<HWND>> {
     }
 }
 
-fn set_transparent_one_frame(alpha: u8, hwnd: HWND) {
+pub fn set_transparent_one_frame(alpha: u8, hwnd: HWND) {
     unsafe {
         let old_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
         if 0 == old_style & WS_EX_LAYERED as LONG_PTR {

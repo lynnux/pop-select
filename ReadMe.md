@@ -1,6 +1,9 @@
 功能介绍
 ===
 本Emacs module专为windows设计。主要功能有：
+
+(!!文档更新可能不及时，请自行F1 f搜索查看`pop-select/`开头的函数定义)
+
 # 1. 设置Emacs窗口透明 #
 有两种方式
 - 设置整个emacs透明。
@@ -133,13 +136,13 @@
 ```
 (pop-select/popup-shell-menu PATH X Y) ; PATH即路径，目录/文件都可以，X、Y即屏幕座标，如何都是0，那么会在当前鼠标指针位置弹出。
 ```
-额外添加第1项为路径的文件名。
-TODO: 点击空白处目前不会消失。
+额外添加第1项为路径的文件名以避免不知道选中的是哪个文件。
+TODO: 目前explorer的复制/粘贴可以进dired，但是dired复制粘贴到explorer不行
+
 参考配置：
 ```
 在dired里用鼠标右键点击文件：
 (when (functionp 'pop-select/popup-shell-menu)
-    ;; TODO: 目前可以把外面的粘贴进来，但是dired里复制粘贴是不行的
     (define-key dired-mode-map (kbd "<mouse-3>") 
       (lambda (event)
         (interactive "e")
@@ -153,5 +156,5 @@ TODO: 点击空白处目前不会消失。
           (pop-select/popup-shell-menu (replace-regexp-in-string "/" "\\\\" path) 0 0)
           ))))
 ```
-效果图跟上面一样：
+效果图：
 ![gif](gif/shell.gif)

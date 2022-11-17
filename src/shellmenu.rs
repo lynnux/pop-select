@@ -15,11 +15,12 @@ pub fn pop_shell_menu(path: String, x: i32, y: i32) -> Result<(), NwgError> {
 
     let mut window = Default::default();
     nwg::Window::builder()
-        // .size((1, 1))
         .ex_flags(WS_EX_TOOLWINDOW) // 无任务栏窗口
-        .flags(nwg::WindowFlags::POPUP) // | nwg::WindowFlags::VISIBLE
-        // .position((-1, -1))
+        // .flags(nwg::WindowFlags::POPUP | nwg::WindowFlags::VISIBLE) // |
+        .maximized(true)
         .build(&mut window)?;
+    // 按MSDN说明TrackPopupMenuEx的父窗口需要前置，否则点空白处menu不会退出，所以这里是窗口最大化，并且设置成透明1（测试完全透明不行） ，效果很好！
+    crate::transparent::set_transparent_one_frame(1, window.handle.hwnd().unwrap());
 
     let handler =
         nwg::bind_raw_event_handler(&window.handle, 0x10000, move |hwnd, msg, _w, _l| {
