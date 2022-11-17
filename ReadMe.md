@@ -1,3 +1,8 @@
+加载
+===
+```
+(ignore-errors (module-load "pop_select.dll全路径，如果没有加入PATH环境变量目录里的话"))
+```
 功能介绍
 ===
 本Emacs module专为windows设计。主要功能有：
@@ -13,7 +18,6 @@
 ```
 示例设置：
 ```
-(ignore-errors (module-load "pop_select.dll全路径，如果没有加入bin路径的话"))
 (when (functionp 'pop-select/transparent-set-all-frame)
     (pop-select/transparent-set-all-frame 220))
 ```
@@ -51,6 +55,7 @@
   )
 ```
 后面这种效果图：
+
 ![gif](gif/1.gif)
 
 
@@ -92,6 +97,7 @@
   )
 ```
 效果图：
+
 ![gif](gif/2.gif)
 
 # 3. "异步"beacon效果 #
@@ -127,6 +133,7 @@
   )
 ```
 效果图跟上面一样：
+
 ![gif](gif/2.gif)
 
 # 4.开启win10的dark mode(emacs29版本自带，适合29以下版本)
@@ -158,4 +165,5 @@ TODO: 目前explorer的复制/粘贴可以进dired，但是dired复制粘贴到e
           ))))
 ```
 效果图：
+
 ![gif](gif/shell.gif)
