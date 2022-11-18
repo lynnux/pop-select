@@ -141,52 +141,67 @@
 
 ![gif](gif/2.gif)
 
-# 4.开启win10的dark mode(emacs29版本自带，适合29以下版本)
+# 4. 开启win10的dark mode(emacs29版本自带，适合29以下版本)
 调用`(pop-select/ensure-all-window-dark-mode)`即可，不过目前标题可能不会立即刷新，建议加个`(w32-send-sys-command #xf030)`最大化就可以了
 
-# 5.弹出shell右键菜单
+# 5. shell相关功能
+弹出shell右键菜单
 ```
 (pop-select/popup-shell-menu PATHS X Y SHOW-EXTRA-HEAD) ; PATHS是路径vector，X、Y即屏幕座标，如果都是0，那么会在当前鼠标指针位置弹出。SHOW-EXTRA-HEAD是不否显示额外的菜单。
 ```
 
 有个问题，首次或者偶尔点击空白处可能不会退出menu，这是正常的，后面都正常了。
 
-参考配置：
+参考配置，仅供参考，我自用的不会及时更新在这里：
 ```
-在dired里用鼠标右键点击文件，有region则按多个文件处理：
 (when (functionp 'pop-select/popup-shell-menu)
+    (defun get-region-select-path()
+      "获取选中的路径，抄的dired-mark和dired-mark-files-in-region"
+      (let (paths)
+        (when (region-active-p)
+          (setq paths [])
+          (save-excursion 
+            (let* ((beg (region-beginning))
+	           (end (region-end))
+                   (start (progn (goto-char beg) (line-beginning-position)))
+                   (end (progn (goto-char end)
+                               (if (if (eq dired-mark-region 'line)
+                                       (not (bolp))
+                                     (get-text-property (1- (point)) 'dired-filename))
+                                   (line-end-position)
+                                 (line-beginning-position)))) 
+                   )
+              (goto-char start)     ; assumed at beginning of line
+              (while (< (point) end)
+                ;; Skip subdir line and following garbage like the `total' line:
+                (while (and (< (point) end) (dired-between-files))
+	          (forward-line 1))
+                (if (and (not (looking-at-p dired-re-dot))
+	                 (dired-get-filename nil t))
+                    (setq paths (vconcat paths (list (replace-regexp-in-string "/" "\\\\" (dired-get-filename nil t)))))
+	          )
+                (forward-line 1))
+	      )))
+        paths))
+    (defun get-select-or-current-path()
+      (let ((paths (get-region-select-path))
+            current)
+        (unless paths
+          (setq current (dired-get-filename nil t))
+          (when current
+            (setq paths [])
+            (setq paths (vconcat paths (list (replace-regexp-in-string "/" "\\\\" current)))))
+          )
+        paths))
+    
     (define-key dired-mode-map (kbd "<mouse-3>") 
       (lambda (event)
         (interactive "e")
         (let ((pt (posn-point (event-end event)))
-              (paths [])
+              (paths (get-region-select-path))
               path)
-          (if (region-active-p)
-              ;; 选中多个文件，抄的dired-mark和dired-mark-files-in-region
-              (save-excursion 
-                (let* ((beg (region-beginning))
-	              (end (region-end))
-                      (start (progn (goto-char beg) (line-beginning-position)))
-                      (end (progn (goto-char end)
-                                  (if (if (eq dired-mark-region 'line)
-                                          (not (bolp))
-                                        (get-text-property (1- (point)) 'dired-filename))
-                                      (line-end-position)
-                                    (line-beginning-position)))) 
-                      )
-                  (goto-char start)     ; assumed at beginning of line
-                  (while (< (point) end)
-                    ;; Skip subdir line and following garbage like the `total' line:
-                    (while (and (< (point) end) (dired-between-files))
-	              (forward-line 1))
-                    (if (and (not (looking-at-p dired-re-dot))
-	                     (dired-get-filename nil t))
-                        (setq paths (vconcat paths (list (replace-regexp-in-string "/" "\\\\" (dired-get-filename nil t)))))
-	                )
-                    (forward-line 1))
-	          )
-                (pop-select/popup-shell-menu paths 0 0 1)
-		)
+          (if paths
+              (pop-select/popup-shell-menu paths 0 0 1)
             ;; 单个文件直接跳过去
             (goto-char pt)
             (setq path (dired-get-filename nil t))
@@ -195,11 +210,46 @@
             (setq paths (vconcat paths (list (replace-regexp-in-string "/" "\\\\" path))))
             ;; 延迟调用使当前选中项更新hl-line等
             (run-at-time 0.1 nil (lambda ()
-                                   ;; 路径用/分隔的话弹不出来
                                    (pop-select/popup-shell-menu paths 0 0 1)
-                                   ))
-            )))))
+                                   ))))))
+    (define-key dired-mode-map (kbd "C-c C-c") 
+      (lambda()
+        (interactive)
+        (let ((paths (get-select-or-current-path)))
+          (when paths
+            (pop-select/shell-copyfiles paths)
+            (message "Copy: %S" paths)))))
+    (define-key dired-mode-map (kbd "C-w")
+      (lambda()
+        (interactive)
+        (let ((paths (get-select-or-current-path)))
+          (when paths
+            (pop-select/shell-cutfiles paths)
+            (message "Cut: %S" paths)))))
+    (define-key dired-mode-map (kbd "C-v")
+      (lambda()
+        (interactive)
+        (let ((current-dir (dired-current-directory)))
+          (when current-dir
+            (pop-select/shell-pastefiles current-dir)
+            (message "Paste in: %S" current-dir)))))
+    )
 ```
 效果图：
 
 ![gif](gif/shell.gif)
+
+shell copy功能，即explorer里按CTRL+C一样的效果：
+```
+(pop-select/shell-copyfiles PATHS) ; PATHS是路径vector
+```
+
+shell cut功能，即explorer里剪切功能：
+```
+(pop-select/shell-cutfiles PATHS) ; PATHS是路径vector
+```
+
+shell paste功能，即explorer里的CTRL+V一样的效果：
+```
+(pop-select/shell-pastefiles PATH) ; PATH目标路径
+```
