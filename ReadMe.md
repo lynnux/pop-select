@@ -155,7 +155,6 @@
 ```
 在dired里用鼠标右键点击文件，有region则按多个文件处理：
 (when (functionp 'pop-select/popup-shell-menu)
-    ;; TODO: 目前可以把外面的粘贴进来，但是dired里复制粘贴是不行的
     (define-key dired-mode-map (kbd "<mouse-3>") 
       (lambda (event)
         (interactive "e")
