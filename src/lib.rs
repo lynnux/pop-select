@@ -88,7 +88,7 @@ fn popup_shell_menu(paths: Vector, x: i32, y: i32, show_extra_head: i32) -> Resu
             if let Ok(ss) = paths.get(i) {
                 v.push(ss);
             }
-        }  
+        }
         if let Err(e) = crate::shellmenu::pop_shell_menu(v, x, y, show_extra_head) {
             let es = format!("popup_shell_menu error: {}", e);
             let esw = to_wstring(&es);
@@ -97,5 +97,39 @@ fn popup_shell_menu(paths: Vector, x: i32, y: i32, show_extra_head: i32) -> Resu
             }
         }
     }
+    Ok(0)
+}
+
+#[defun]
+fn shell_copyfiles(paths: Vector) -> Result<usize> {
+    let mut v = Vec::new();
+    if let Ok(s) = paths.size() {
+        for i in 0..s {
+            if let Ok(ss) = paths.get(i) {
+                v.push(ss);
+            }
+        }
+        crate::shellmenu::shell_copyfiles(v);
+    }
+    Ok(0)
+}
+
+#[defun]
+fn shell_cutfiles(paths: Vector) -> Result<usize> {
+    let mut v = Vec::new();
+    if let Ok(s) = paths.size() {
+        for i in 0..s {
+            if let Ok(ss) = paths.get(i) {
+                v.push(ss);
+            }
+        }
+        crate::shellmenu::shell_cutfiles(v);
+    }
+    Ok(0)
+}
+
+#[defun]
+fn shell_pastefiles(path: String) -> Result<usize> {
+    crate::shellmenu::shell_pastefiles(path);
     Ok(0)
 }

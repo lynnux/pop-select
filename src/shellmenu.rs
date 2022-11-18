@@ -7,7 +7,16 @@ use winapi::{shared::ntdef::LPCWSTR, um::winuser::*};
 // 再者，按MSDN说明TrackPopupMenuEx的父窗口需要前置，否则点空白处menu不会退出，所以这里是窗口最大化，并且设置成透明1（测试完全透明不行）
 
 extern "C" {
-    fn PopupShellMenu(h: winapi::shared::windef::HWND, path: *const LPCWSTR, x: i32, y: i32, showExtraHead: i32);
+    fn PopupShellMenu(
+        h: winapi::shared::windef::HWND,
+        path: *const LPCWSTR,
+        x: i32,
+        y: i32,
+        showExtraHead: i32,
+    );
+    fn CopyPathsToClipboard(path: *const LPCWSTR);
+    fn CutPathsToClipboard(path: *const LPCWSTR);
+    fn PasteToPathFromClipboard(path: LPCWSTR);
 }
 
 thread_local! {
@@ -22,7 +31,12 @@ pub fn shellmenu_init() {
     }
 }
 
-pub fn pop_shell_menu(paths: Vec<String>, x: i32, y: i32, show_extra_head: i32) -> Result<(), NwgError> {
+pub fn pop_shell_menu(
+    paths: Vec<String>,
+    x: i32,
+    y: i32,
+    show_extra_head: i32,
+) -> Result<(), NwgError> {
     SHELL_PARENT_WND.with(|wnd| {
         if (*wnd.borrow()).is_none() {
             nwg::init().ok(); // 必须，会注册ngw的类
@@ -80,4 +94,41 @@ pub fn pop_shell_menu(paths: Vec<String>, x: i32, y: i32, show_extra_head: i32) 
         }
     });
     Ok(())
+}
+
+pub fn shell_copyfiles(paths: Vec<String>) {
+    let mut vp = Vec::new();
+    for p in &paths {
+        vp.push(crate::to_wstring(&p));
+    }
+    let mut vpr = Vec::new();
+    for p in &vp {
+        vpr.push(p.as_ptr());
+    }
+    vpr.push(std::ptr::null()); // 以0结尾
+    unsafe {
+        CopyPathsToClipboard(vpr.as_ptr());
+    }
+}
+
+pub fn shell_cutfiles(paths: Vec<String>) {
+    let mut vp = Vec::new();
+    for p in &paths {
+        vp.push(crate::to_wstring(&p));
+    }
+    let mut vpr = Vec::new();
+    for p in &vp {
+        vpr.push(p.as_ptr());
+    }
+    vpr.push(std::ptr::null()); // 以0结尾
+    unsafe {
+        CutPathsToClipboard(vpr.as_ptr());
+    }
+}
+
+pub fn shell_pastefiles(path: String) {
+    let p = crate::to_wstring(&path);
+    unsafe {
+        PasteToPathFromClipboard(p.as_ptr());
+    }
 }
