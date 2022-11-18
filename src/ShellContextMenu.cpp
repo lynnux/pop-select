@@ -30,6 +30,7 @@
 #include <set>
 #include <algorithm>
 #include <memory>
+#include <string>
 
 #define MIN_ID 6
 #define MAX_ID 10000
@@ -189,7 +190,7 @@ LRESULT CALLBACK CShellContextMenu::HookWndProc(HWND hWnd, UINT message, WPARAM 
     return ::CallWindowProc(g_oldWndProc, hWnd, message, wParam, lParam);
 }
 
-UINT CShellContextMenu::ShowContextMenu(HWND hWnd, POINT pt)
+UINT CShellContextMenu::ShowContextMenu(HWND hWnd, POINT pt, bool addExtraHead)
 {
     int           iMenuType = 0; // to know which version of IContextMenu is supported
     LPCONTEXTMENU pContextMenu;  // common pointer to IContextMenu and higher version interface
@@ -206,39 +207,50 @@ UINT CShellContextMenu::ShowContextMenu(HWND hWnd, POINT pt)
         m_menu = CreatePopupMenu();
     }
 
-    // CRegStdString regEditorCmd(L"Software\\grepWin\\editorcmd");
-    // std::wstring  editorCmd = regEditorCmd;
-    // if (bPortable)
-    //     editorCmd = g_iniFile.GetValue(L"global", L"editorcmd", L"");
-
-    if (m_strVector.size() == 1)
+    if(addExtraHead)
     {
-        // if (!editorCmd.empty())
-        // {
-        //     ::InsertMenu(m_menu, 1, MF_BYPOSITION | MF_STRING, 5, TranslatedString(g_hInst, IDS_OPENWITHEDITOR).c_str());
-        //     ::InsertMenu(m_menu, 5, MF_SEPARATOR | MF_BYPOSITION, 0, nullptr);
-        // }
+        // CRegStdString regEditorCmd(L"Software\\grepWin\\editorcmd");
+        // std::wstring  editorCmd = regEditorCmd;
+        // if (bPortable)
+        //     editorCmd = g_iniFile.GetValue(L"global", L"editorcmd", L"");
+        std::wstring hint;
+        if(m_strVector.size() == 1){
+            hint = PathFindFileNameW(m_strVector[0].filePath.c_str());
+        } else {
+            hint = L"选择了多个文件";
+        }
+        ::InsertMenu(m_menu, 0, MF_BYPOSITION|MF_STRING, 3, hint.c_str()); // 默认复制文件名
+    
+        if (m_strVector.size() == 1)
+        {
+            // if (!editorCmd.empty())
+            // {
+            //     ::InsertMenu(m_menu, 1, MF_BYPOSITION | MF_STRING, 5, TranslatedString(g_hInst, IDS_OPENWITHEDITOR).c_str());
+            //     ::InsertMenu(m_menu, 5, MF_SEPARATOR | MF_BYPOSITION, 0, nullptr);
+            // }
 
-        ::InsertMenu(m_menu, 1, MF_BYPOSITION | MF_STRING, 1, TranslatedString(g_hInst, IDS_OPENCONTAININGFOLDER).c_str());
-        ::InsertMenu(m_menu, 2, MF_BYPOSITION | MF_STRING, 2, TranslatedString(g_hInst, IDS_COPYPATH).c_str());
-        ::InsertMenu(m_menu, 3, MF_BYPOSITION | MF_STRING, 3, TranslatedString(g_hInst, IDS_COPYFILENAME).c_str());
-        // if (!m_lineVector.empty())
-        //     ::InsertMenu(m_menu, 4, MF_BYPOSITION | MF_STRING, 4, TranslatedString(g_hInst, IDS_COPYRESULT).c_str());
-        ::InsertMenu(m_menu, 5, MF_SEPARATOR | MF_BYPOSITION, 0, nullptr);
+            ::InsertMenu(m_menu, 1, MF_BYPOSITION | MF_STRING, 1, TranslatedString(g_hInst, IDS_OPENCONTAININGFOLDER).c_str());
+            ::InsertMenu(m_menu, 2, MF_BYPOSITION | MF_STRING, 2, TranslatedString(g_hInst, IDS_COPYPATH).c_str());
+            ::InsertMenu(m_menu, 3, MF_BYPOSITION | MF_STRING, 3, TranslatedString(g_hInst, IDS_COPYFILENAME).c_str());
+            // if (!m_lineVector.empty())
+            //     ::InsertMenu(m_menu, 4, MF_BYPOSITION | MF_STRING, 4, TranslatedString(g_hInst, IDS_COPYRESULT).c_str());
+            ::InsertMenu(m_menu, 5, MF_SEPARATOR | MF_BYPOSITION, 0, nullptr);
+        }
+        else if (m_strVector.size() > 1)
+        {
+            // if (!editorCmd.empty())
+            // {
+            //     ::InsertMenu(m_menu, 1, MF_BYPOSITION | MF_STRING, 5, TranslatedString(g_hInst, IDS_OPENWITHEDITOR).c_str());
+            //     ::InsertMenu(m_menu, 5, MF_SEPARATOR | MF_BYPOSITION, 0, nullptr);
+            // }
+            ::InsertMenu(m_menu, 2, MF_BYPOSITION | MF_STRING, 2, TranslatedString(g_hInst, IDS_COPYPATHS).c_str());
+            ::InsertMenu(m_menu, 3, MF_BYPOSITION | MF_STRING, 3, TranslatedString(g_hInst, IDS_COPYFILENAMES).c_str());
+            // if (!m_lineVector.empty())
+            //     ::InsertMenu(m_menu, 4, MF_BYPOSITION | MF_STRING, 4, TranslatedString(g_hInst, IDS_COPYRESULTS).c_str());
+            ::InsertMenu(m_menu, 5, MF_SEPARATOR | MF_BYPOSITION, 0, nullptr);
+        }
     }
-    else if (m_strVector.size() > 1)
-    {
-        // if (!editorCmd.empty())
-        // {
-        //     ::InsertMenu(m_menu, 1, MF_BYPOSITION | MF_STRING, 5, TranslatedString(g_hInst, IDS_OPENWITHEDITOR).c_str());
-        //     ::InsertMenu(m_menu, 5, MF_SEPARATOR | MF_BYPOSITION, 0, nullptr);
-        // }
-        ::InsertMenu(m_menu, 2, MF_BYPOSITION | MF_STRING, 2, TranslatedString(g_hInst, IDS_COPYPATHS).c_str());
-        ::InsertMenu(m_menu, 3, MF_BYPOSITION | MF_STRING, 3, TranslatedString(g_hInst, IDS_COPYFILENAMES).c_str());
-        // if (!m_lineVector.empty())
-        //     ::InsertMenu(m_menu, 4, MF_BYPOSITION | MF_STRING, 4, TranslatedString(g_hInst, IDS_COPYRESULTS).c_str());
-        ::InsertMenu(m_menu, 5, MF_SEPARATOR | MF_BYPOSITION, 0, nullptr);
-    }
+    
     // lets fill the our popup menu
     pContextMenu->QueryContextMenu(m_menu, GetMenuItemCount(m_menu), MIN_ID, MAX_ID, CMF_NORMAL | CMF_EXPLORE);
 

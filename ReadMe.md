@@ -146,27 +146,60 @@
 
 # 5.弹出shell右键菜单
 ```
-(pop-select/popup-shell-menu PATHS X Y) ; PATHS是路径[]，X、Y即屏幕座标，如何都是0，那么会在当前鼠标指针位置弹出。
+(pop-select/popup-shell-menu PATHS X Y SHOW-EXTRA-HEAD) ; PATHS是路径vector，X、Y即屏幕座标，如果都是0，那么会在当前鼠标指针位置弹出。SHOW-EXTRA-HEAD是不否显示额外的菜单。
 ```
 
 有个问题，首次或者偶尔点击空白处可能不会退出menu，这是正常的，后面都正常了。
 
 参考配置：
 ```
-在dired里用鼠标右键点击文件：
+在dired里用鼠标右键点击文件，有region则按多个文件处理：
 (when (functionp 'pop-select/popup-shell-menu)
+    ;; TODO: 目前可以把外面的粘贴进来，但是dired里复制粘贴是不行的
     (define-key dired-mode-map (kbd "<mouse-3>") 
       (lambda (event)
         (interactive "e")
         (let ((pt (posn-point (event-end event)))
+              (paths [])
               path)
-          (goto-char pt) ;; 选中指针下的文件
-          (setq path (dired-get-filename nil t))
-          (unless path ;可能是点击了空白处，那么就取当前目录
-            (setq path (dired-current-directory)))
-          ;; 路径用/分隔的话弹不出来
-          (pop-select/popup-shell-menu (replace-regexp-in-string "/" "\\\\" path) 0 0)
-          ))))
+          (if (region-active-p)
+              ;; 选中多个文件，抄的dired-mark和dired-mark-files-in-region
+              (save-excursion 
+                (let* ((beg (region-beginning))
+	              (end (region-end))
+                      (start (progn (goto-char beg) (line-beginning-position)))
+                      (end (progn (goto-char end)
+                                  (if (if (eq dired-mark-region 'line)
+                                          (not (bolp))
+                                        (get-text-property (1- (point)) 'dired-filename))
+                                      (line-end-position)
+                                    (line-beginning-position)))) 
+                      )
+                  (goto-char start)     ; assumed at beginning of line
+                  (while (< (point) end)
+                    ;; Skip subdir line and following garbage like the `total' line:
+                    (while (and (< (point) end) (dired-between-files))
+	              (forward-line 1))
+                    (if (and (not (looking-at-p dired-re-dot))
+	                     (dired-get-filename nil t))
+                        (setq paths (vconcat paths (list (replace-regexp-in-string "/" "\\\\" (dired-get-filename nil t)))))
+	                )
+                    (forward-line 1))
+	          )
+                (pop-select/popup-shell-menu paths 0 0 1)
+		)
+            ;; 单个文件直接跳过去
+            (goto-char pt)
+            (setq path (dired-get-filename nil t))
+            (unless path         ;可能是点击了空白处，那么就取当前目录
+              (setq path (dired-current-directory)))
+            (setq paths (vconcat paths (list (replace-regexp-in-string "/" "\\\\" path))))
+            ;; 延迟调用使当前选中项更新hl-line等
+            (run-at-time 0.1 nil (lambda ()
+                                   ;; 路径用/分隔的话弹不出来
+                                   (pop-select/popup-shell-menu paths 0 0 1)
+                                   ))
+            )))))
 ```
 效果图：
 

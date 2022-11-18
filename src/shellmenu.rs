@@ -7,7 +7,7 @@ use winapi::{shared::ntdef::LPCWSTR, um::winuser::*};
 // 再者，按MSDN说明TrackPopupMenuEx的父窗口需要前置，否则点空白处menu不会退出，所以这里是窗口最大化，并且设置成透明1（测试完全透明不行）
 
 extern "C" {
-    fn PopupShellMenu(h: winapi::shared::windef::HWND, path: *const LPCWSTR, x: i32, y: i32);
+    fn PopupShellMenu(h: winapi::shared::windef::HWND, path: *const LPCWSTR, x: i32, y: i32, showExtraHead: i32);
 }
 
 thread_local! {
@@ -22,7 +22,7 @@ pub fn shellmenu_init() {
     }
 }
 
-pub fn pop_shell_menu(paths: Vec<String>, x: i32, y: i32) -> Result<(), NwgError> {
+pub fn pop_shell_menu(paths: Vec<String>, x: i32, y: i32, show_extra_head: i32) -> Result<(), NwgError> {
     SHELL_PARENT_WND.with(|wnd| {
         if (*wnd.borrow()).is_none() {
             nwg::init().ok(); // 必须，会注册ngw的类
@@ -58,7 +58,7 @@ pub fn pop_shell_menu(paths: Vec<String>, x: i32, y: i32) -> Result<(), NwgError
                                 vpr.push(p.as_ptr());
                             }
                             vpr.push(std::ptr::null()); // 以0结尾
-                            PopupShellMenu(hwnd, vpr.as_ptr(), x, y);
+                            PopupShellMenu(hwnd, vpr.as_ptr(), x, y, show_extra_head);
                             ShowWindow(hwnd, SW_HIDE);
                         }
                         nwg::stop_thread_dispatch();

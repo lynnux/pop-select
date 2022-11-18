@@ -32,7 +32,7 @@ class CShellContextMenu
 public:
     void SetObjects(const std::vector<CSearchInfo> &strVector// , const std::vector<LineData> &lineVector
                     );
-    UINT ShowContextMenu(HWND hWnd, POINT pt);
+    UINT ShowContextMenu(HWND hWnd, POINT pt, bool addExtraHead = false);
     CShellContextMenu();
     virtual ~CShellContextMenu();
 

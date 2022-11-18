@@ -7,7 +7,7 @@
 #include "ShellContextMenu.h"
 
 extern "C"{
-    void PopupShellMenu(HWND emacs, const wchar_t** path, LONG x, LONG y){
+    void PopupShellMenu(HWND emacs, const wchar_t** path, LONG x, LONG y, LONG showExtraHead){
         POINT pt;
         if(x == 0 && y == 0){
             GetCursorPos(&pt);
@@ -23,6 +23,6 @@ extern "C"{
         }
 
         cm.SetObjects(paths);
-        cm.ShowContextMenu(emacs, pt);
+        cm.ShowContextMenu(emacs, pt, showExtraHead != 0);
     }
 }
