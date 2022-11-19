@@ -380,6 +380,21 @@ unsafe extern "system" fn CreateWindowExA_detour(
         lpParam,
     );
     if !ret.is_null() {
+        // lpClassName可能是atom
+        if std::mem::size_of::<LPCSTR>() == 8 {
+            // 64位，判断高位DWORD是否是0，是的话再判断低DWORD的HIWORD是否是0，是0那就是atom
+            if (lpClassName as u64 >> 32) & 0xffffffff == 0 {
+                if winapi::shared::minwindef::HIWORD(lpClassName as DWORD) == 0 {
+                    return ret;
+                }
+            }
+        } else {
+            // 32位判断HIWORD是否是0，是0那就是atom
+            if winapi::shared::minwindef::HIWORD(lpClassName as DWORD) == 0 {
+                return ret;
+            }
+        }
+
         if 0 == lstrcmpiA(lpClassName, b"emacs\0".as_ptr() as _)
             || 0 == lstrcmpiA(lpClassName, b"ScrollBar\0".as_ptr() as _)
         {
