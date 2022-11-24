@@ -149,9 +149,6 @@
 ```
 (pop-select/popup-shell-menu PATHS X Y SHOW-EXTRA-HEAD) ; PATHS是路径vector，X、Y即屏幕座标，如果都是0，那么会在当前鼠标指针位置弹出。SHOW-EXTRA-HEAD是不否显示额外的菜单。
 ```
-
-有个问题，首次或者偶尔点击空白处可能不会退出menu，这是正常的，后面都正常了。
-
 参考配置，仅供参考，我自用的不会及时更新在这里：
 ```
 (when (functionp 'pop-select/popup-shell-menu)
@@ -203,6 +200,7 @@
           (if paths
               (pop-select/popup-shell-menu paths 0 0 1)
             ;; 单个文件直接跳过去
+            (select-window (posn-window (event-end event)))
             (goto-char pt)
             (setq path (dired-get-filename nil t))
             (unless path         ;可能是点击了空白处，那么就取当前目录
@@ -212,21 +210,29 @@
             (run-at-time 0.1 nil (lambda ()
                                    (pop-select/popup-shell-menu paths 0 0 1)
                                    ))))))
-    (define-key dired-mode-map (kbd "C-c C-c") 
+    (defun print-paths(vec)
+      (let ((len (length vec))
+            (s "")
+            (i 0))
+        (while (< i len)
+          (setq s (concat  s "\n" (file-name-nondirectory (aref vec i)) ))
+          (setq i (1+ i)))
+        s))
+    (define-key dired-mode-map "c" 
       (lambda()
         (interactive)
         (let ((paths (get-select-or-current-path)))
           (when paths
             (pop-select/shell-copyfiles paths)
-            (message "Copy: %S" paths)))))
+            (message (concat "Copy: " (print-paths paths)))))))
     (define-key dired-mode-map (kbd "C-w")
       (lambda()
         (interactive)
         (let ((paths (get-select-or-current-path)))
           (when paths
             (pop-select/shell-cutfiles paths)
-            (message "Cut: %S" paths)))))
-    (define-key dired-mode-map (kbd "C-v")
+            (message (concat "Cut: " (print-paths paths)))))))
+    (define-key dired-mode-map "v"
       (lambda()
         (interactive)
         (let ((current-dir (dired-current-directory)))
