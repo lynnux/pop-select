@@ -1,5 +1,7 @@
 ﻿extern crate native_windows_gui as nwg;
 use nwg::NwgError;
+use winapi::shared::minwindef::{TRUE, FALSE};
+use winapi::um::processthreadsapi::GetCurrentThreadId;
 use std::cell::RefCell;
 use winapi::um::ole2::OleInitialize;
 use winapi::{shared::ntdef::LPCWSTR, um::winuser::*};
@@ -57,6 +59,22 @@ pub fn pop_shell_menu(
         if let Some(window) = &*wnd.borrow() {
             unsafe {
                 ShowWindow(window.handle.hwnd().unwrap(), SW_SHOW);
+            }
+
+            // 解决首次弹出后点击空白处无效的问题(之前测试发现用了CTRL+TAB后就没这问题，说明仍然是后台弹窗焦点问题)
+            unsafe {
+                let hwnd = window.handle.hwnd().unwrap();
+                let h_fore_wnd = GetForegroundWindow();
+                let dw_cur_id = GetCurrentThreadId();
+                let dw_fore_id = GetWindowThreadProcessId(h_fore_wnd, std::ptr::null_mut());
+
+                AttachThreadInput(dw_cur_id, dw_fore_id, TRUE);
+                ShowWindow(hwnd, SW_SHOWNORMAL);
+                SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
+                SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
+                SetForegroundWindow(hwnd);
+                BringWindowToTop(hwnd);
+                AttachThreadInput(dw_cur_id, dw_fore_id, FALSE);
             }
 
             if let Ok(handler) =

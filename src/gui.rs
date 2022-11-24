@@ -105,7 +105,7 @@ pub fn popup(
         SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
         SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
         SetForegroundWindow(hwnd);
-        SetFocus(hwnd);
+        BringWindowToTop(hwnd);
         AttachThreadInput(dw_cur_id, dw_fore_id, FALSE);
     }
     // hook list也可以，但是头次ctrl+shift+tab没反应
