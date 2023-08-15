@@ -13,22 +13,31 @@ use winapi::um::processthreadsapi::*;
 use winapi::um::wingdi::*;
 use winapi::um::winuser::*;
 
+static mut UI_THREAD_ID: DWORD = 0;
+
 static mut BEACON_WND: HWND = std::ptr::null_mut();
-static mut BEACON_TID: DWORD = 0;
 static mut BEACON_WIDTH: DWORD = 300;
 static mut BEACON_HEIGHT: DWORD = 20;
 static mut BEACON_R: u8 = 255;
 static mut BEACON_G: u8 = 0;
 static mut BEACON_B: u8 = 0;
-static mut BEACON_X: usize = 0;
-static mut BEACON_Y: usize = 0;
-static mut BEACON_DURATION: usize = 0;
-static mut BEACON_DURATION_COUNT: isize = 0; //  百分比
-static mut TIMER_DURATION_EACH: usize = 100;
+static mut BEACON_ARG_X: usize = 0;
+static mut BEACON_ARG_Y: usize = 0;
+static mut BEACON_ARG_DURATION: usize = 0;
+static mut BEACON_DURATION_LEFT_COUNT: isize = 0; //  百分比
+static mut TIMER_BEACON_DURATION_STEP: usize = 100;
 const WM_SHOW_BEACON: UINT = WM_USER + 0x0001;
 const WM_BEACON_SET_SIZE: UINT = WM_USER + 0x0002;
-const TIMER_DURATION: UINT_PTR = 1;
-const TIMER_DELAY: UINT_PTR = 2;
+const TIMER_BEACON_DURATION: UINT_PTR = 1;
+const TIMER_BEACON_DELAY: UINT_PTR = 2;
+
+// cursor animation，参考https://github.com/manateelazycat/holo-layer/blob/master/plugin/cursor_animation.py
+const WM_SHOW_ANIMATION: UINT = WM_USER + 0x0003;
+static mut ANIMATION_WND: HWND = std::ptr::null_mut();
+static mut ANIMATION_ARG_X: usize = 0;
+static mut ANIMATION_ARG_Y: usize = 0;
+static mut ANIMATION_ARG_DURATION: usize = 0;
+// static mut BEACON_DURATION_LEFT_COUNT: isize = 0; //  百分比
 
 pub unsafe extern "system" fn window_proc(
     hwnd: HWND,
@@ -45,8 +54,8 @@ pub unsafe extern "system" fn window_proc(
 }
 fn on_timer(left: isize) {
     unsafe {
-        let left = (left as f64 / (BEACON_DURATION as f64 / TIMER_DURATION_EACH as f64)
-            * BEACON_WIDTH as f64) as i32;
+        let left = (left as f64 / (BEACON_ARG_DURATION as f64 / TIMER_BEACON_DURATION_STEP as f64)
+                    * BEACON_WIDTH as f64) as i32;
         #[cfg(debug_assertions)]
         {
             let right = BEACON_WIDTH as i32 - left;
@@ -106,19 +115,19 @@ fn show_wnd() {
         }
         ShowWindow(BEACON_WND, SW_SHOW);
 
-        BEACON_DURATION_COUNT = (BEACON_DURATION as f64 / TIMER_DURATION_EACH as f64) as isize;
-        SetTimer(BEACON_WND, TIMER_DURATION, TIMER_DURATION_EACH as u32, None);
+        BEACON_DURATION_LEFT_COUNT = (BEACON_ARG_DURATION as f64 / TIMER_BEACON_DURATION_STEP as f64) as isize;
+        SetTimer(BEACON_WND, TIMER_BEACON_DURATION, TIMER_BEACON_DURATION_STEP as u32, None);
         // SetForegroundWindow(BEACON_WND); // 这个会发生焦点切换
         SetWindowPos(
             BEACON_WND,
             HWND_TOPMOST,
-            BEACON_X as c_int,
-            BEACON_Y as c_int,
+            BEACON_ARG_X as c_int,
+            BEACON_ARG_Y as c_int,
             BEACON_WIDTH as c_int,
             BEACON_HEIGHT as c_int,
             SWP_SHOWWINDOW,
         );
-        on_timer(BEACON_DURATION_COUNT);
+        on_timer(BEACON_DURATION_LEFT_COUNT);
     }
 }
 
@@ -178,8 +187,8 @@ fn create_wnd() {
         SetLayeredWindowAttributes(
             hwnd,
             RGB(0, 0, 0),
-            200,                // LWA_COLORKEY这个就没效果，是全透明的
-            LWA_COLORKEY //
+            200, // LWA_COLORKEY这个就没效果，是全透明的
+            LWA_COLORKEY, //
             // LWA_ALPHA,
         );
         BEACON_WND = hwnd;
@@ -188,7 +197,7 @@ fn create_wnd() {
 
 pub fn becaon_init() {
     std::thread::spawn(move || unsafe {
-        BEACON_TID = GetCurrentThreadId();
+        UI_THREAD_ID = GetCurrentThreadId();
         let mut msg = MSG {
             hwnd: std::ptr::null_mut(),
             message: 0,
@@ -207,8 +216,8 @@ pub fn becaon_init() {
             if msg.message == WM_SHOW_BEACON {
                 create_wnd();
                 if !BEACON_WND.is_null() {
-                    KillTimer(BEACON_WND, TIMER_DURATION);
-                    SetTimer(BEACON_WND, TIMER_DELAY, msg.wParam as u32, None);
+                    KillTimer(BEACON_WND, TIMER_BEACON_DURATION);
+                    SetTimer(BEACON_WND, TIMER_BEACON_DELAY, msg.wParam as u32, None);
                 } else {
                     #[cfg(debug_assertions)]
                     {
@@ -223,20 +232,20 @@ pub fn becaon_init() {
                     BEACON_WND = std::ptr::null_mut();
                 }
             } else if msg.message == WM_TIMER {
-                if msg.wParam == TIMER_DURATION {
-                    BEACON_DURATION_COUNT = BEACON_DURATION_COUNT - 1;
-                    if BEACON_DURATION_COUNT < 0 {
+                if msg.wParam == TIMER_BEACON_DURATION {
+                    BEACON_DURATION_LEFT_COUNT = BEACON_DURATION_LEFT_COUNT - 1;
+                    if BEACON_DURATION_LEFT_COUNT < 0 {
                         #[cfg(debug_assertions)]
                         {
                             OutputDebugStringA(b"kill timer!\0" as *const _ as *const _);
                         }
                         ShowWindow(BEACON_WND, SW_HIDE);
-                        KillTimer(BEACON_WND, TIMER_DURATION);
+                        KillTimer(BEACON_WND, TIMER_BEACON_DURATION);
                     } else {
-                        on_timer(BEACON_DURATION_COUNT);
+                        on_timer(BEACON_DURATION_LEFT_COUNT);
                     }
-                } else if msg.wParam == TIMER_DELAY {
-                    KillTimer(BEACON_WND, TIMER_DELAY);
+                } else if msg.wParam == TIMER_BEACON_DELAY {
+                    KillTimer(BEACON_WND, TIMER_BEACON_DELAY);
                     show_wnd();
                 }
             }
@@ -256,7 +265,7 @@ fn set_parameters(
 ) -> Result<()> {
     unsafe {
         PostThreadMessageW(
-            BEACON_TID,
+            UI_THREAD_ID,
             WM_BEACON_SET_SIZE,
             width as WPARAM,
             height as LPARAM,
@@ -264,7 +273,7 @@ fn set_parameters(
         BEACON_R = r;
         BEACON_G = g;
         BEACON_B = b;
-        TIMER_DURATION_EACH = duration_step;
+        TIMER_BEACON_DURATION_STEP = duration_step;
     }
     Ok(())
 }
@@ -272,10 +281,10 @@ fn set_parameters(
 #[defun]
 fn blink(x: usize, y: usize, timer: usize, delay: usize) -> Result<()> {
     unsafe {
-        BEACON_X = x;
-        BEACON_Y = y;
-        BEACON_DURATION = timer;
-        PostThreadMessageW(BEACON_TID, WM_SHOW_BEACON, delay as WPARAM, 0 as LPARAM);
+        BEACON_ARG_X = x;
+        BEACON_ARG_Y = y;
+        BEACON_ARG_DURATION = timer;
+        PostThreadMessageW(UI_THREAD_ID, WM_SHOW_BEACON, delay as WPARAM, 0 as LPARAM);
     }
     Ok(())
 }
