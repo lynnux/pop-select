@@ -287,3 +287,5 @@ shell paste功能，即explorer里的CTRL+V一样的效果：
                                                                     233 86 120 ; r g b
                                                                     )))))))
 ```
+效果图：
+![gif](gif/ani.gif)
