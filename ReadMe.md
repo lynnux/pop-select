@@ -259,3 +259,31 @@ shell paste功能，即explorer里的CTRL+V一样的效果：
 ```
 (pop-select/shell-pastefiles PATH) ; PATH目标路径
 ```
+#6 类似neovide的光标移动效果
+```
+(pop-select/beacon-animation X Y W H TIMER STEP R G B)
+```
+配置参考：
+```
+(when (fboundp 'pop-select/beacon-animation)
+  (add-hook 'post-command-hook (lambda()
+                                 (ignore-errors
+                                   (let* ((p (window-absolute-pixel-position))
+                                          (pp (point))
+                                          (w (if (equal cursor-type 'bar) 1
+                                               (if-let ((glyph (when (< pp (point-max))
+                                                                 (aref (font-get-glyphs (font-at pp) pp (1+ pp)) 0))))
+                                                   (aref glyph 4)
+                                                 (window-font-width))))
+                                          (h (line-pixel-height))
+                                          )
+                                     (when p
+                                       (pop-select/beacon-animation (car p) ; x
+                                                                    (cdr p) ; y
+                                                                    w
+                                                                    h
+                                                                    100 ; timer
+                                                                    50 ; timer step
+                                                                    233 86 120 ; r g b
+                                                                    )))))))
+```
