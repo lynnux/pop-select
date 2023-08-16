@@ -259,7 +259,7 @@ shell paste功能，即explorer里的CTRL+V一样的效果：
 ```
 (pop-select/shell-pastefiles PATH) ; PATH目标路径
 ```
-#6 类似neovide的光标移动效果
+# 6. 类似neovide的光标移动效果
 ```
 (pop-select/beacon-animation X Y W H TIMER STEP R G B)
 ```
