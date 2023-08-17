@@ -621,6 +621,7 @@ fn animation(
     r: u8,
     g: u8,
     b: u8,
+    diff_min: usize,
 ) -> Result<()> {
     unsafe {
         cursor_info_x = x;
@@ -635,16 +636,20 @@ fn animation(
         }
 
         if cursor_info_x != cursor_info_prev_x || cursor_info_y != cursor_info_prev_y {
-            cursor_start_x = cursor_info_prev_x;
-            cursor_start_y = cursor_info_prev_y;
-            cursor_end_x = cursor_info_x;
-            cursor_end_y = cursor_info_y;
-            cursor_color_r = r;
-            cursor_color_g = g;
-            cursor_color_b = b;
-            ANIMATION_ARG_DURATION = timer;
-            ANIMATION_ARG_DURATION_STEP = step;
-            PostThreadMessageW(UI_THREAD_ID, WM_SHOW_ANIMATION, 0 as WPARAM, 0 as LPARAM);
+            if cursor_info_x.abs_diff(cursor_info_prev_x) >= diff_min
+                || cursor_info_y.abs_diff(cursor_info_prev_y) >= diff_min
+            {
+                cursor_start_x = cursor_info_prev_x;
+                cursor_start_y = cursor_info_prev_y;
+                cursor_end_x = cursor_info_x;
+                cursor_end_y = cursor_info_y;
+                cursor_color_r = r;
+                cursor_color_g = g;
+                cursor_color_b = b;
+                ANIMATION_ARG_DURATION = timer;
+                ANIMATION_ARG_DURATION_STEP = step;
+                PostThreadMessageW(UI_THREAD_ID, WM_SHOW_ANIMATION, 0 as WPARAM, 0 as LPARAM);
+            }
             cursor_info_prev_x = x;
             cursor_info_prev_y = y;
             cursor_info_prev_w = w;

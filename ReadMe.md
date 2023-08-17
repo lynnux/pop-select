@@ -261,31 +261,43 @@ shell paste功能，即explorer里的CTRL+V一样的效果：
 ```
 # 6. 类似neovide的光标移动效果
 ```
-(pop-select/beacon-animation X Y W H TIMER STEP R G B)
+(pop-select/beacon-animation X Y W H TIMER STEP R G B DIFF-MIN)
+X: 坐标x值
+Y: 坐标y值
+W: 光标宽度
+H: 光标高度
+TIMER: 动画持续时间
+STEP: 动画持续时间按多少份处理
+R: 光标颜色RGB的R值
+G: 光标颜色RGB的G值
+B: 光标颜色RGB的B值
+DIFF-MIN: 坐标差值最小值，小于这个值就不显示动画，可以排除光标小范围移动时显示动画
 ```
 配置参考：
 ```
 (when (fboundp 'pop-select/beacon-animation)
-  (add-hook 'post-command-hook (lambda()
-                                 (ignore-errors
-                                   (let* ((p (window-absolute-pixel-position))
-                                          (pp (point))
-                                          (w (if (equal cursor-type 'bar) 1
-                                               (if-let ((glyph (when (< pp (point-max))
-                                                                 (aref (font-get-glyphs (font-at pp) pp (1+ pp)) 0))))
-                                                   (aref glyph 4)
-                                                 (window-font-width))))
-                                          (h (line-pixel-height))
-                                          )
-                                     (when p
-                                       (pop-select/beacon-animation (car p) ; x
-                                                                    (cdr p) ; y
-                                                                    w
-                                                                    h
-                                                                    100 ; timer
-                                                                    50 ; timer step
-                                                                    233 86 120 ; r g b
-                                                                    )))))))
+  (defun show-cursor-animation()
+    (ignore-errors
+      (let* ((p (window-absolute-pixel-position))
+             (pp (point))
+             (w (if (equal cursor-type 'bar) 1
+                  (if-let ((glyph (when (< pp (point-max))
+                                    (aref (font-get-glyphs (font-at pp) pp (1+ pp)) 0))))
+                      (aref glyph 4)
+                    (window-font-width))))
+             (h (line-pixel-height))
+             )
+        (when p
+          (pop-select/beacon-animation (car p)   ; x
+                                       (cdr p)   ; y
+                                       w
+                                       h
+                                       100          ; timer
+                                       50           ; timer step
+                                       233 86 120   ; r g b
+                                       20 ; diff min，自己试验
+                                       )))))
+  (add-hook 'post-command-hook 'show-cursor-animation))
 ```
 效果图：
 ![gif](gif/ani.gif)
