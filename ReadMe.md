@@ -291,13 +291,15 @@ DIFF-MIN: 坐标差值最小值，小于这个值就不显示动画，可以排�
              )
         (when p
           (pop-select/beacon-animation (car p)   ; x
-                                       (cdr p)   ; y
+                                       (if header-line-format
+                                           (- (cdr p) h) ;; 修复开启`header-line-format'时y值不正确
+                                         (cdr p)) ; y
                                        w
                                        h
                                        100          ; timer
                                        50           ; timer step
                                        233 86 120   ; r g b
-                                       20 ; diff min，自己试验
+                                       20 ; diff min 自己试验
                                        )))))
   (add-hook 'post-command-hook 'show-cursor-animation))
 ```
