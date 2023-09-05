@@ -322,13 +322,12 @@ DIFF-MIN: 坐标差值最小值，小于这个值就不显示动画，可以排�
               (lambda ()
                 (remove-hook 'server-after-make-frame-hook cursor-animation-color-setter)
                 (let ((cursor-animation-color-RGB
-                       (with-selected-frame (selected-frame)
-                         ;; 如果背景色是暗的, 就将残影设为光标颜色的暗度+50%;
-                         ;; 反之亦然.
-                         (color-name-to-rgb (funcall (if (color-dark-p (color-name-to-rgb (face-background 'default)))
-                                                         #'color-darken-name
-                                                       #'color-lighten-name)
-                                                     (face-background 'cursor) 50)))))
+                       ;; 如果背景色是暗的, 就将残影设为光标颜色的暗度+50%;
+                       ;; 反之亦然.
+                       (color-name-to-rgb (funcall (if (color-dark-p (color-name-to-rgb (face-background 'default)))
+                                                       #'color-darken-name
+                                                     #'color-lighten-name)
+                                                   (face-background 'cursor) 50))))
                   (setq cursor-animation-color-R (floor (* (cl-first  cursor-animation-color-RGB) 255.9999999999999))
                         cursor-animation-color-G (floor (* (cl-second cursor-animation-color-RGB) 255.9999999999999))
                         cursor-animation-color-B (floor (* (cl-third  cursor-animation-color-RGB) 255.9999999999999)))))))
