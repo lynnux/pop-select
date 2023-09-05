@@ -293,15 +293,17 @@ DIFF-MIN: 坐标差值最小值，小于这个值就不显示动画，可以排�
                 "滚屏时关闭残影: 1. 节约性能; 2. 设置 `scroll-margin' 后, 滚屏时残影位置不准确."
                 (setq cursor-animation? nil)))
     (defun show-cursor-animation ()
-      (when-let ((window-point-coordinate (when (or cursor-animation?
-                                                    (eq this-command 'recenter-top-bottom))
-                                            (window-absolute-pixel-position))))
+      (when-let ((window-absolute-pixel-position
+                  (when (or cursor-animation?
+                            (eq this-command 'recenter-top-bottom))
+                    (window-absolute-pixel-position))))
         (let ((line-pixel-height (line-pixel-height)))
           (pop-select/beacon-animation
-           (car window-point-coordinate) (if header-line-format
-                                             ;; 修复开启 `header-line-format' 时 y 值不正确.
-                                             (- (cdr window-point-coordinate) line-pixel-height)
-                                           (cdr window-point-coordinate))
+           (car window-absolute-pixel-position) (if header-line-format
+                                                    ;; 修复开启 `header-line-format' 时 y 值不正确.
+                                                    (- (cdr window-absolute-pixel-position)
+                                                       line-pixel-height)
+                                                  (cdr window-absolute-pixel-position))
            (if (eq cursor-type 'bar)
                1
              (if-let ((glyph (let ((point (point)))
