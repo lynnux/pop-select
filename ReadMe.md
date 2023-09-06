@@ -1,7 +1,12 @@
 加载
 ===
-```
-(ignore-errors (module-load "pop_select.dll全路径，如果没有加入PATH环境变量目录里的话"))
+```lisp
+(when (and (eq system-type 'windows-nt)
+           (or (display-graphic-p)
+               (daemonp)))
+  (ignore-error 'file-missing
+    ;; 把 DLL 加到 `load-path' 里.
+    (load-library "pop_select.dll")))
 ```
 
 编译
@@ -17,21 +22,21 @@
 # 1. 设置Emacs窗口透明 #
 有两种方式
 - 设置整个emacs透明。
-```
+```lisp
 (pop-select/transparent-set-all-frame ALPHA) ;; 对所有frame设置透明，ALPHA范围0-255，0全透明，255不透明
 (pop-select/transparent-set-current-frame ALPHA) ;; 只对当前frame设置透明，其它同上
 ```
 示例设置：
-```
+```lisp
 (when (functionp 'pop-select/transparent-set-all-frame)
     (pop-select/transparent-set-all-frame 220))
 ```
 - [**有bug不建议使用!**]设置文字不透明，背景透明。由于实现的限制，该功能打开时会使Emacs置顶，当设置为255即不透明时取消置顶
-```
+```lisp
 (pop-select/transparent-set-background ALPHA R G B) ;; ALPHA范围0-255，0全透明，255不透明。R G B为rgb拆分数值。
 ```
 示例设置，用CTRL+鼠标滚轮调整当前的透明度：
-```
+```lisp
 (ignore-errors (module-load "pop_select.dll全路径，如果没有加入bin路径的话"))
 (when (functionp 'pop-select/transparent-set-background)
   (defvar cur-transparent 255)
@@ -66,10 +71,10 @@
 
 # 2. CTRL+TAB弹出窗口选择列表 #
 `pop-select/pop-select`弹出一个竖型列表窗口，然后可以按ctrl+tab切换到下一项，ctrl+tab+shift切换到上一项，释放按键后返回所选项给emacs
-```
+```lisp
 (pop-select/pop-select NAME TO-SEL) ;; NAME为vector列表，TO-SEL是初始选中哪项
 ```
-```
+```lisp
 (when (fboundp 'pop-select/pop-select)
   (defun my-pop-select(&optional backward)
     (interactive)
@@ -107,11 +112,11 @@
 
 # 3. "异步"beacon效果 #
 用于替换beacon的闪烁效果，完全不卡Emacs窗口，因为是另起了一个专门的ui线程来画beacon。实现函数`pop-select/beacon-blink`和`pop-select/beacon-set-parameters`
-```
+```lisp
 (pop-select/beacon-set-parameters WIDTH HEIGHT R G B DURATION-STEP) ;; 可设置宽度，高度，rgb色，以及blink效果显示时间
 (pop-select/beacon-blink X Y TIMER DELAY) ;; 在X, Y坐标显示TIMER时长，DELAY是延迟显示时间
 ```
-```
+```lisp
 (when (fboundp 'pop-select/beacon-set-parameters)
   ;; 51afef
   (pop-select/beacon-set-parameters 300 20 #x51 #xaf #xef 50)
@@ -146,11 +151,11 @@
 
 # 5. shell相关功能
 弹出shell右键菜单
-```
+```lisp
 (pop-select/popup-shell-menu PATHS X Y SHOW-EXTRA-HEAD) ; PATHS是路径vector，X、Y即屏幕座标，如果都是0，那么会在当前鼠标指针位置弹出。SHOW-EXTRA-HEAD是不否显示额外的菜单。
 ```
 参考配置，仅供参考，我自用的不会及时更新在这里：
-```
+```lisp
 (when (functionp 'pop-select/popup-shell-menu)
     (defun get-region-select-path()
       "获取选中的路径，抄的dired-mark和dired-mark-files-in-region"
@@ -246,17 +251,17 @@
 ![gif](gif/shell.gif)
 
 shell copy功能，即explorer里按CTRL+C一样的效果：
-```
+```lisp
 (pop-select/shell-copyfiles PATHS) ; PATHS是路径vector
 ```
 
 shell cut功能，即explorer里剪切功能：
-```
+```lisp
 (pop-select/shell-cutfiles PATHS) ; PATHS是路径vector
 ```
 
 shell paste功能，即explorer里的CTRL+V一样的效果：
-```
+```lisp
 (pop-select/shell-pastefiles PATH) ; PATH目标路径
 ```
 # 6. 类似neovide的光标移动效果
@@ -276,32 +281,63 @@ DIFF-MIN: 坐标差值最小值，小于这个值就不显示动画，可以排�
 注意R G B不能设置为0 0 0即黑色，这是透明色会看不见。还有更改rgb后需要重启才会生效。
 ```
 配置参考：
-```
-(when (fboundp 'pop-select/beacon-animation)
-  (defun show-cursor-animation()
-    (ignore-errors
-      (let* ((p (window-absolute-pixel-position))
-             (pp (point))
-             (w (if (equal cursor-type 'bar) 1
-                  (if-let ((glyph (when (< pp (point-max))
-                                    (aref (font-get-glyphs (font-at pp) pp (1+ pp)) 0))))
-                      (aref glyph 4)
-                    (window-font-width))))
-             (h (line-pixel-height))
-             )
-        (when p
-          (pop-select/beacon-animation (car p)   ; x
-                                       (if header-line-format
-                                           (- (cdr p) h) ;; 修复开启`header-line-format'时y值不正确
-                                         (cdr p)) ; y
-                                       w
-                                       h
-                                       140          ; timer
-                                       60           ; timer step
-                                       233 86 120   ; r g b
-                                       20 ; diff min 自己试验
-                                       )))))
-  (add-hook 'post-command-hook 'show-cursor-animation))
+```lisp
+;;; -*- lexical-binding: t; -*-
+(with-eval-after-load "pop_select.dll"
+  (let ((cursor-animation-color-R 0)
+        (cursor-animation-color-G 0)
+        (cursor-animation-color-B 0)
+        cursor-animation?)  ; 是否开启光标残影.
+    (add-hook 'window-scroll-functions
+              (lambda (_window _position)
+                "滚屏时关闭残影: 1. 节约性能; 2. 设置 `scroll-margin' 后, 滚屏时残影位置不准确."
+                (setq cursor-animation? nil)))
+    (defun show-cursor-animation ()
+      (when-let ((window-absolute-pixel-position
+                  (when (or cursor-animation?
+                            (eq this-command 'recenter-top-bottom))
+                    (window-absolute-pixel-position))))
+        (let ((line-pixel-height (line-pixel-height)))
+          (pop-select/beacon-animation
+           (car window-absolute-pixel-position) (if header-line-format
+                                                    ;; 修复开启 `header-line-format' 时 y 值不正确.
+                                                    (- (cdr window-absolute-pixel-position)
+                                                       line-pixel-height)
+                                                  (cdr window-absolute-pixel-position))
+           (if (eq cursor-type 'bar)
+               1
+             (if-let ((glyph (let ((point (point)))
+                               (when (< point (point-max))
+                                 (aref (font-get-glyphs (font-at point)
+                                                        point (1+ point)) 0)))))
+                 (aref glyph 4)
+               (window-font-width))) line-pixel-height
+           140 60
+           cursor-animation-color-R cursor-animation-color-G cursor-animation-color-B
+           ;; 排除大约是单个半角字符的距离:
+           24)))
+      (setq cursor-animation? t))
+    (add-hook 'post-command-hook #'show-cursor-animation)
+    (letrec ((cursor-animation-color-setter
+              (lambda ()
+                (remove-hook 'server-after-make-frame-hook cursor-animation-color-setter)
+                (let ((cursor-animation-color-RGB
+                       ;; 如果背景色是暗的, 就将残影设为光标颜色的暗度+50%;
+                       ;; 反之亦然.
+                       (color-name-to-rgb (funcall (if (color-dark-p (color-name-to-rgb (face-background 'default)))
+                                                       #'color-darken-name
+                                                     #'color-lighten-name)
+                                                   (face-background 'cursor) 50))))
+                  (setq cursor-animation-color-R (floor (* (cl-first  cursor-animation-color-RGB) 255.9999999999999))
+                        cursor-animation-color-G (floor (* (cl-second cursor-animation-color-RGB) 255.9999999999999))
+                        cursor-animation-color-B (floor (* (cl-third  cursor-animation-color-RGB) 255.9999999999999)))))))
+      ;; 如果是 daemon, 则必须等到第一个 visible frame 创建之后再设置残影的颜色.
+      (add-hook 'server-after-make-frame-hook cursor-animation-color-setter)
+      (unless (daemonp)
+        ;; 如果不是 daemon, 确保大部分有关 face 的设置生效后再设置残影的颜色.
+        (add-hook 'emacs-startup-hook
+                  cursor-animation-color-setter
+                  90)))))
 ```
 效果图：
 
