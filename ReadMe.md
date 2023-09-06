@@ -319,8 +319,6 @@ DIFF-MIN: 坐标差值最小值，小于这个值就不显示动画，可以排�
 
 ```lisp
 ;;; -*- lexical-binding: t; -*-
-;;; 开启光标残影.
-;;; 下载 DLL: <https://github.com/lynnux/pop-select>.
 
 (require 'cl-lib)
 
