@@ -282,6 +282,39 @@ DIFF-MIN: 坐标差值最小值，小于这个值就不显示动画，可以排�
 ```
 配置参考：
 ```lisp
+(when (fboundp 'pop-select/beacon-animation)
+  (defun show-cursor-animation ()
+    (ignore-errors
+      (let* ((p (window-absolute-pixel-position))
+             (pp (point))
+             (w
+              (if (equal cursor-type 'bar)
+                  1
+                (if-let ((glyph
+                          (when (< pp (point-max))
+                            (aref
+                             (font-get-glyphs
+                              (font-at pp) pp (1+ pp))
+                             0))))
+                  (aref glyph 4)
+                  (window-font-width))))
+             (h (line-pixel-height)))
+        (when p
+          (pop-select/beacon-animation
+           (car p) ; x
+           (if header-line-format
+               (- (cdr p) h) ;; 修复开启`header-line-format'时y值不正确
+             (cdr p)) ; y
+           w h
+           140 ; timer
+           60 ; timer step
+           233 86 120 ; r g b
+           20 ; diff min，根据自己需要试验
+           )))))
+  (add-hook 'post-command-hook 'show-cursor-animation))
+```
+更复杂的配置：
+```lisp
 ;;; -*- lexical-binding: t; -*-
 (with-eval-after-load "pop_select.dll"
   (let ((cursor-animation-color-R 0)
