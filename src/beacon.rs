@@ -41,6 +41,9 @@ static mut ANIMATION_ARG_DURATION_STEP: usize = 100;
 const TIMER_ANIMATION_DURATION: UINT_PTR = 3;
 static mut ANIMATION_DURATION_LEFT_COUNT: isize = 0; //  百分比
 static mut cursor_color: HBRUSH = std::ptr::null_mut();
+static mut cursor_color_r_old: u8 = 0;
+static mut cursor_color_g_old: u8 = 0;
+static mut cursor_color_b_old: u8 = 0;
 static mut cursor_color_r: u8 = 255;
 static mut cursor_color_g: u8 = 255;
 static mut cursor_color_b: u8 = 255;
@@ -319,10 +322,22 @@ fn show_animation_wnd() {
             TIMER_BEACON_DURATION_STEP as u32,
             None,
         );
-        // TODO: 目前仅支持一次性设置
-        if cursor_color.is_null() {
+
+        if cursor_color.is_null()
+            || cursor_color_r_old != cursor_color_r
+            || cursor_color_g_old != cursor_color_g
+            || cursor_color_b_old != cursor_color_b
+        {
+            if !cursor_color.is_null() {
+                DeleteObject(cursor_color as *mut _);
+                cursor_color = std::ptr::null_mut();
+            }
             cursor_color = CreateSolidBrush(RGB(cursor_color_r, cursor_color_g, cursor_color_b));
+            cursor_color_r_old = cursor_color_r;
+            cursor_color_g_old = cursor_color_g;
+            cursor_color_b_old = cursor_color_b;
         }
+
         // SetForegroundWindow(ANIMATION_WND); // 这个会发生焦点切换
         on_animation_timer(ANIMATION_DURATION_LEFT_COUNT);
     }
