@@ -313,9 +313,22 @@ DIFF-MIN: 坐标差值最小值，小于这个值就不显示动画，可以排�
            )))))
   (add-hook 'post-command-hook 'show-cursor-animation))
 ```
-更复杂的配置：
+
+<details>
+  <summary>根据背景色调整光标的残影的颜色</summary>
+
 ```lisp
 ;;; -*- lexical-binding: t; -*-
+
+(require 'cl-lib)
+
+(when (and (eq system-type 'windows-nt)
+           (or (display-graphic-p)
+               (daemonp)))
+  (ignore-error 'file-missing
+    ;; 把 DLL 加到 `load-path' 里.
+    (load-library "pop_select.dll")))
+
 (with-eval-after-load "pop_select.dll"
   (let ((cursor-animation-color-R 0)
         (cursor-animation-color-G 0)
@@ -325,53 +338,59 @@ DIFF-MIN: 坐标差值最小值，小于这个值就不显示动画，可以排�
               (lambda (_window _position)
                 "滚屏时关闭残影: 1. 节约性能; 2. 设置 `scroll-margin' 后, 滚屏时残影位置不准确."
                 (setq cursor-animation? nil)))
-    (defun show-cursor-animation ()
-      (when-let ((window-absolute-pixel-position
-                  (when (or cursor-animation?
-                            (eq this-command 'recenter-top-bottom))
-                    (window-absolute-pixel-position))))
-        (let ((line-pixel-height (line-pixel-height)))
-          (pop-select/beacon-animation
-           (car window-absolute-pixel-position) (if header-line-format
-                                                    ;; 修复开启 `header-line-format' 时 y 值不正确.
-                                                    (- (cdr window-absolute-pixel-position)
-                                                       line-pixel-height)
-                                                  (cdr window-absolute-pixel-position))
-           (if (eq cursor-type 'bar)
-               1
-             (if-let ((glyph (let ((point (point)))
-                               (when (< point (point-max))
-                                 (aref (font-get-glyphs (font-at point)
-                                                        point (1+ point)) 0)))))
-                 (aref glyph 4)
-               (window-font-width))) line-pixel-height
-           140 60
-           cursor-animation-color-R cursor-animation-color-G cursor-animation-color-B
-           ;; 排除大约是单个半角字符的距离:
-           24)))
-      (setq cursor-animation? t))
-    (add-hook 'post-command-hook #'show-cursor-animation)
+    (add-hook 'post-command-hook
+              (lambda ()
+                (when-let ((window-absolute-pixel-position
+                            (when (or cursor-animation?
+                                      (eq this-command 'recenter-top-bottom))
+                              (window-absolute-pixel-position))))
+                  (let ((line-pixel-height (line-pixel-height)))
+                    (pop-select/beacon-animation
+                     (car window-absolute-pixel-position) (if header-line-format
+                                                              (- (cdr window-absolute-pixel-position)
+                                                                 line-pixel-height)
+                                                            (cdr window-absolute-pixel-position))
+                     (if (eq cursor-type 'bar)
+                         1
+                       (if-let ((glyph (let ((point (point)))
+                                         (when (< point (point-max))
+                                           (aref (font-get-glyphs (font-at point)
+                                                                  point (1+ point)) 0)))))
+                           (aref glyph 4)
+                         (window-font-width))) line-pixel-height
+                     180 100
+                     cursor-animation-color-R cursor-animation-color-G cursor-animation-color-B
+                     ;; 排除大约是单个半角字符的距离:
+                     24)))
+                (setq cursor-animation? t)))
     (letrec ((cursor-animation-color-setter
               (lambda ()
                 (remove-hook 'server-after-make-frame-hook cursor-animation-color-setter)
                 (let ((cursor-animation-color-RGB
-                       ;; 如果背景色是暗的, 就将残影设为光标颜色的暗度+50%;
-                       ;; 反之亦然.
-                       (color-name-to-rgb (funcall (if (color-dark-p (color-name-to-rgb (face-background 'default)))
-                                                       #'color-darken-name
-                                                     #'color-lighten-name)
-                                                   (face-background 'cursor) 50))))
-                  (setq cursor-animation-color-R (floor (* (cl-first  cursor-animation-color-RGB) 255.9999999999999))
-                        cursor-animation-color-G (floor (* (cl-second cursor-animation-color-RGB) 255.9999999999999))
-                        cursor-animation-color-B (floor (* (cl-third  cursor-animation-color-RGB) 255.9999999999999)))))))
+                       (cl-mapcar (let* ((ratio 0.5)  ; 只需要修改此值.
+                                         (1-ratio (- 1 ratio)))
+                                    (lambda (cursor-color default-color)
+                                      "按照 ratio:(1-ratio) 的比例混合光标颜色和背景色."
+                                      (floor (* (+ (*   ratio  cursor-color)
+                                                   (* 1-ratio default-color))
+                                                255.9999999999999))))
+                                  (color-name-to-rgb (face-background 'cursor))
+                                  (color-name-to-rgb (face-background 'default)))))
+                  (setq cursor-animation-color-R (cl-first  cursor-animation-color-RGB)
+                        cursor-animation-color-G (cl-second cursor-animation-color-RGB)
+                        cursor-animation-color-B (cl-third  cursor-animation-color-RGB))))))
       ;; 如果是 daemon, 则必须等到第一个 visible frame 创建之后再设置残影的颜色.
       (add-hook 'server-after-make-frame-hook cursor-animation-color-setter)
       (unless (daemonp)
         ;; 如果不是 daemon, 确保大部分有关 face 的设置生效后再设置残影的颜色.
-        (add-hook 'emacs-startup-hook
-                  cursor-animation-color-setter
-                  90)))))
+        (add-hook 'emacs-startup-hook cursor-animation-color-setter 90))
+      (when (eq this-command 'eval-buffer)
+        ;; 若要测试本文件, 直接将其拷贝到单独的 buffer, 然后执行 `eval-buffer'.
+        (funcall cursor-animation-color-setter)))))
 ```
+
+</details>
+
 效果图：
 
 ![gif](gif/ani.gif)
