@@ -277,8 +277,9 @@ R: 光标颜色RGB的R值
 G: 光标颜色RGB的G值
 B: 光标颜色RGB的B值
 DIFF-MIN: 坐标差值最小值，小于这个值就不显示动画，可以排除光标小范围移动时显示动画
-
 注意R G B不能设置为0 0 0即黑色，这是透明色会看不见
+(pop-select/beacon-animation-update-pos X Y W H)
+更新光标位置，比如一些命令你不想让它显示动画，就需要调用该函数更新位置，不然下次有光标动画时起始位置不对
 ```
 配置参考：
 ```lisp
@@ -287,6 +288,7 @@ DIFF-MIN: 坐标差值最小值，小于这个值就不显示动画，可以排�
     (ignore-errors
       (let* ((p (window-absolute-pixel-position))
              (pp (point))
+             (x (car p))
              (w
               (if (equal cursor-type 'bar)
                   1
@@ -298,20 +300,26 @@ DIFF-MIN: 坐标差值最小值，小于这个值就不显示动画，可以排�
                              0))))
                   (aref glyph 4)
                   (window-font-width))))
-             (h (line-pixel-height)))
+             (h (line-pixel-height))
+             (y
+              (if header-line-format
+                  (- (cdr p) h) ;; 修复开启`header-line-format'时y值不正确
+                (cdr p))))
         (when p
-          (pop-select/beacon-animation
-           (car p) ; x
-           (if header-line-format
-               (- (cdr p) h) ;; 修复开启`header-line-format'时y值不正确
-             (cdr p)) ; y
-           w h
-           140 ; timer
-           60 ; timer step
-           233 86 120 ; r g b
-           20 ; diff min，根据自己需要试验
-           )))))
-  (add-hook 'post-command-hook 'show-cursor-animation))
+          (if (memq
+               this-command
+               '(mwheel-scroll
+                 move-beginning-of-line
+                 move-end-of-line)) ;; 某些命令不显示动画
+              (pop-select/beacon-animation-update-pos x y w h) ;; 不显示动画时只更新位置
+            (pop-select/beacon-animation
+             x y w h
+             100 ; timer
+             50 ; timer step
+             233 86 120 ; r g b
+             20 ; diff min，根据自己需要试验
+             ))))))
+  (add-hook 'post-command-hook #'show-cursor-animation))
 ```
 
 <details>

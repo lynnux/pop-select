@@ -673,3 +673,14 @@ fn animation(
     }
     Ok(())
 }
+
+#[defun]
+fn animation_update_pos(x: usize, y: usize, w: usize, h: usize) -> Result<()> {
+    unsafe {
+        cursor_info_prev_x = x;
+        cursor_info_prev_y = y;
+        cursor_info_prev_w = w;
+        cursor_info_prev_h = h;
+    }
+    Ok(())
+}
