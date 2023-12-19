@@ -112,13 +112,14 @@ pub fn popup(
     let handler = nwg::bind_raw_event_handler(&window.handle, 0x10000, move |_hwnd, msg, w, _l| {
         if msg == WM_COMMAND {
             let cmd = winapi::shared::minwindef::LOWORD(w as u32);
+            const ID_ALT_1: u16 = 40000;
             const ID_CTRLTAB: u16 = 40001;
             const ID_CTRLTAB_SHIFT: u16 = 40002;
             const ID_CTRL_P: u16 = 40003;
             const ID_CTRL_N: u16 = 40004;
             let mut to_next = false;
             let mut to_prev = false;
-            if cmd == ID_CTRLTAB || cmd == ID_CTRL_N {
+            if cmd == ID_CTRLTAB || cmd == ID_CTRL_N || cmd == ID_ALT_1 {
                 to_next = true;
             } else if ID_CTRLTAB_SHIFT == cmd || ID_CTRL_P == cmd {
                 to_prev = true;
